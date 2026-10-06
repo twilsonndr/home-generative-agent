@@ -311,13 +311,16 @@ async def async_model_options(  # noqa: PLR0913
     provider_id_key: str,
     category: str,
     builtin: list[str],
+    cache: dict[tuple[str | None, str | None], list[str]] | None = None,
 ) -> list[SelectOptionDict]:
     """
     Return model picker options: the built-in list, then what the backend lists.
 
     The OpenAI listing is narrowed to models that serve ``category`` ("stt" or
     "tts"); a local server's listing is shown as-is since its ids are free-form.
-    Any listing failure leaves just the built-in list.
+    Any listing failure leaves just the built-in list. Pass the flow's
+    ``cache`` so a redisplayed form (e.g. after a validation error) does not
+    repeat the lookup.
     """
     try:
         connection = resolve_openai_connection(
@@ -330,7 +333,13 @@ async def async_model_options(  # noqa: PLR0913
         listed: list[str] = []
     else:
         api_key = None if connection.keyless else connection.api_key
-        listed = await list_openai_models(flow.hass, api_key, connection.base_url)
+        cache_key = (api_key, connection.base_url)
+        cached = cache.get(cache_key) if cache is not None else None
+        if cached is None:
+            cached = await list_openai_models(flow.hass, api_key, connection.base_url)
+            if cache is not None:
+                cache[cache_key] = cached
+        listed = cached
         if provider_type == "openai":
             listed = filter_openai_models(listed, category)
     return [
