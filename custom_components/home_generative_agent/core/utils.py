@@ -50,6 +50,7 @@ if TYPE_CHECKING:
         AsyncIterator,
         Callable,
         Coroutine,
+        Iterable,
         Mapping,
         MutableMapping,
         Sequence,
@@ -732,6 +733,100 @@ async def list_ollama_models(  # noqa: PLR0911
     return names
 
 
+OPENAI_API_BASE_URL = "https://api.openai.com/v1"
+
+# Substrings that mark an OpenAI model id as something other than a
+# chat/vision model (audio, image generation, moderation, legacy completion).
+_OPENAI_NON_CHAT_MARKERS = (
+    "audio",
+    "babbage",
+    "dall-e",
+    "davinci",
+    "embedding",
+    "image",
+    "instruct",
+    "live",
+    "moderation",
+    "realtime",
+    "search",
+    "transcribe",
+    "tts",
+    "whisper",
+)
+_OPENAI_CHAT_PREFIXES = ("gpt-", "o1", "o3", "o4", "chatgpt-")
+
+# Model ids each category keeps from an official OpenAI /v1/models listing.
+# Unknown categories keep everything.
+_OPENAI_CATEGORY_FILTERS: dict[str, Callable[[str], bool]] = {
+    "chat": lambda m: (
+        m.startswith(_OPENAI_CHAT_PREFIXES)
+        and not any(marker in m for marker in _OPENAI_NON_CHAT_MARKERS)
+    ),
+    "embedding": lambda m: "embedding" in m,
+    "stt": lambda m: "transcribe" in m or "whisper" in m,
+    "tts": lambda m: "tts" in m,
+}
+_OPENAI_CATEGORY_FILTERS["vlm"] = _OPENAI_CATEGORY_FILTERS["chat"]
+_OPENAI_CATEGORY_FILTERS["summarization"] = _OPENAI_CATEGORY_FILTERS["chat"]
+
+
+def filter_openai_models(model_ids: Iterable[str], category: str) -> list[str]:
+    """Keep the OpenAI model ids that can serve ``category``, sorted."""
+    keep = _OPENAI_CATEGORY_FILTERS.get(category)
+    return sorted(m for m in set(model_ids) if keep is None or keep(m.lower()))
+
+
+def merge_model_options(preferred: Iterable[str], listed: Iterable[str]) -> list[str]:
+    """Return ``preferred`` in order, then any ``listed`` ids not already shown."""
+    merged: list[str] = []
+    for model in (*preferred, *listed):
+        if model and model not in merged:
+            merged.append(model)
+    return merged
+
+
+async def list_openai_models(
+    hass: HomeAssistant,
+    api_key: str | None,
+    base_url: str | None = None,
+    timeout_s: float = 5.0,
+) -> list[str]:
+    """
+    Return the model ids an OpenAI (or OpenAI-compatible) endpoint lists.
+
+    Calls ``GET {base_url}/models`` (the OpenAI API when ``base_url`` is
+    unset). Any failure returns ``[]`` so the config flow can fall back to its
+    built-in model list.
+    """
+    url = (
+        normalize_openai_compatible_base_url(base_url)
+        if base_url
+        else OPENAI_API_BASE_URL
+    ) + "/models"
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    client = get_async_client(hass)
+    try:
+        async with asyncio.timeout(timeout_s):
+            resp = await client.get(url, headers=headers)
+    except (TimeoutError, httpx.RequestError):
+        return []
+    if resp.status_code >= HTTP_STATUS_BAD_REQUEST:
+        return []
+    try:
+        payload = resp.json()
+    except ValueError:
+        return []
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, list):
+        return []
+    ids: list[str] = []
+    for item in data:
+        model_id = item.get("id") if isinstance(item, dict) else None
+        if isinstance(model_id, str) and model_id and model_id not in ids:
+            ids.append(model_id)
+    return ids
+
+
 async def validate_openai_key(
     hass: HomeAssistant, api_key: str, timeout_s: float = 10.0
 ) -> None:
@@ -1097,6 +1192,9 @@ def reasoning_field(
 
 
 _EFFORT_LEVELS = frozenset({"minimal", "low", "medium", "high"})
+# OpenAI's reasoning.effort also takes "none" (GPT-5.1+) and "xhigh"/"max"
+# (GPT-6). A model that rejects a level is retried without it.
+_OPENAI_EFFORT_LEVELS = _EFFORT_LEVELS | {"none", "xhigh", "max"}
 
 
 def _thinking_openai(
@@ -1104,7 +1202,7 @@ def _thinking_openai(
 ) -> dict[str, Any]:
     # Cloud OpenAI reasoning models cannot disable thinking; only known effort
     # levels are meaningful. On/Off and free-form strings are not sent.
-    return {"reasoning_effort": effort} if effort in _EFFORT_LEVELS else {}
+    return {"reasoning_effort": effort} if effort in _OPENAI_EFFORT_LEVELS else {}
 
 
 def _thinking_openai_compatible(
