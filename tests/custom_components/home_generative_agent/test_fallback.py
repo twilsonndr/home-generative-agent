@@ -22,6 +22,7 @@ from custom_components.home_generative_agent.core.fallback import (
     _is_retryable,
     ainvoke_dropping_unsupported_params,
     invoke_dropping_unsupported_params,
+    sampling_param_overrides,
     unsupported_sampling_param,
     unsupported_sampling_param_in_chain,
 )
@@ -32,7 +33,7 @@ class FakeAIMessage:
 
     def __init__(
         self,
-        content: str,
+        content: str | list[Any],
         *,
         response_metadata: dict[str, Any] | None = None,
         tool_calls: list[Any] | None = None,
@@ -865,3 +866,99 @@ async def test_fallback_chat_rebind_failure_still_falls_over() -> None:
 def test_reasoning_effort_is_droppable() -> None:
     """A 400 rejecting reasoning_effort must be retried without it (issue #580)."""
     assert "reasoning_effort" in DROPPABLE_SAMPLING_PARAMS
+
+
+@pytest.mark.asyncio
+async def test_fallback_chat_responses_api_reasoning_only_incomplete() -> None:
+    """A Responses API reply cut off mid-reasoning falls back like an empty one."""
+    primary = AsyncMock()
+    primary.ainvoke.return_value = FakeAIMessage(
+        [{"type": "reasoning", "summary": [], "id": "rs_1"}],
+        response_metadata={
+            "status": "incomplete",
+            "incomplete_details": {"reason": "max_output_tokens"},
+            "model_name": "gpt-6-luna",
+        },
+    )
+    fallback = AsyncMock()
+    fallback.ainvoke.return_value = FakeAIMessage("fallback")
+
+    model = FallbackChatModel(
+        chain=[(primary, "cloud", "p1"), (fallback, "cloud", "p2")]
+    )
+
+    result = await model.ainvoke(["hello"])
+
+    assert result.content == "fallback"
+    assert fallback.ainvoke.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fallback_chat_responses_api_text_blocks_do_not_fallback() -> None:
+    """A Responses API reply with text blocks is a real answer."""
+    primary = AsyncMock()
+    primary.ainvoke.return_value = FakeAIMessage(
+        [
+            {"type": "reasoning", "summary": [], "id": "rs_1"},
+            {"type": "text", "text": "The lights are on."},
+        ],
+        response_metadata={"status": "completed", "model_name": "gpt-6-luna"},
+    )
+    fallback = AsyncMock()
+
+    model = FallbackChatModel(
+        chain=[(primary, "cloud", "p1"), (fallback, "cloud", "p2")]
+    )
+
+    await model.ainvoke(["hello"])
+
+    assert fallback.ainvoke.await_count == 0
+
+
+def _gpt6_tools_error() -> Exception:
+    request = httpx.Request("POST", "https://proxy.local/v1/chat/completions")
+    response = httpx.Response(400, request=request)
+    body = {
+        "message": (
+            "Function tools with reasoning_effort are not supported for "
+            "gpt-6-luna in /v1/chat/completions. To use function tools, use "
+            "/v1/responses or set reasoning_effort to 'none'."
+        ),
+        "type": "invalid_request_error",
+        "param": "reasoning_effort",
+        "code": None,
+    }
+    return openai.BadRequestError(
+        f"Error code: 400 - {{'error': {body}}}", response=response, body=body
+    )
+
+
+def test_sampling_param_overrides_sets_none_effort_for_gpt6_tools() -> None:
+    """The GPT-6 tools rejection retries with an explicit effort of "none"."""
+    wrapped = HomeAssistantError("Model invocation failed")
+    wrapped.__cause__ = _gpt6_tools_error()
+    overrides = sampling_param_overrides(wrapped)
+    assert overrides["reasoning_effort"] == "none"
+    assert overrides["temperature"] is None
+    assert overrides["top_p"] is None
+
+
+def test_sampling_param_overrides_nulls_everything_otherwise() -> None:
+    """Other sampling-param 400s still null every droppable param."""
+    overrides = sampling_param_overrides(_bad_request_error())
+    assert overrides == dict.fromkeys(overrides)
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_dropping_sends_none_effort_for_gpt6_tools() -> None:
+    """The config-merge retry passes reasoning_effort "none", not an omission."""
+    model = MagicMock()
+    model.ainvoke = AsyncMock(side_effect=[_gpt6_tools_error(), "ok"])
+
+    result = await ainvoke_dropping_unsupported_params(
+        model, ["hi"], {"configurable": {"reasoning_effort": "low"}}
+    )
+
+    assert result == "ok"
+    retry_config = model.ainvoke.await_args_list[1].args[1]
+    assert retry_config["configurable"]["reasoning_effort"] == "none"

@@ -74,9 +74,9 @@ from custom_components.home_generative_agent.const import (
 )
 
 from ..core.fallback import (  # noqa: TID252
-    DROPPABLE_SAMPLING_PARAMS,
     FallbackChatModel,
     ainvoke_dropping_unsupported_params,
+    sampling_param_overrides,
     unsupported_sampling_param_in_chain,
 )
 from ..core.prompt_cache import (  # noqa: TID252
@@ -2762,7 +2762,7 @@ async def _invoke_chat_model_with_sampling_rebind(  # noqa: PLR0913
             param,
         )
         stripped = base_model.with_config(
-            config={"configurable": dict.fromkeys(DROPPABLE_SAMPLING_PARAMS)}
+            config={"configurable": sampling_param_overrides(err)}
         )
         if selected_tools:
             stripped = await hass.async_add_executor_job(

@@ -128,6 +128,7 @@ class SttProviderSubentryFlow(ConfigSubentryFlow):
         self._name: str | None = None
         self._settings: dict[str, Any] = {}
         self._model: dict[str, Any] = {}
+        self._model_list_cache: dict[tuple[str | None, str | None], list[str]] = {}
 
     def _schedule_reload(self) -> None:
         entry = self._get_entry()
@@ -362,6 +363,7 @@ class SttProviderSubentryFlow(ConfigSubentryFlow):
             self._settings,
             provider_id_key=CONF_STT_OPENAI_PROVIDER_ID,
             category="stt",
+            cache=self._model_list_cache,
             builtin=builtin_models,
         )
         allow_custom_model = True

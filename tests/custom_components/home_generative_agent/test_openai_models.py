@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 import openai
 import pytest
+from langchain_core.runnables import RunnableBinding
 from langchain_openai import ChatOpenAI
 
 from custom_components.home_generative_agent.core import utils
@@ -175,7 +176,7 @@ def test_responses_api_payload_sends_reasoning_effort_with_tools() -> None:
         model="gpt-6-luna",
         use_responses_api=True,
         reasoning_effort="low",
-        max_tokens=256,
+        max_completion_tokens=256,
     )
 
     def get_weather(city: str) -> str:
@@ -183,6 +184,7 @@ def test_responses_api_payload_sends_reasoning_effort_with_tools() -> None:
         return city
 
     bound = model.bind_tools([get_weather])
+    assert isinstance(bound, RunnableBinding)
     payload = model._get_request_payload(
         [("user", "weather in Paris?")], **bound.kwargs
     )

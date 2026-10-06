@@ -778,11 +778,7 @@ def filter_openai_models(model_ids: Iterable[str], category: str) -> list[str]:
 
 def merge_model_options(preferred: Iterable[str], listed: Iterable[str]) -> list[str]:
     """Return ``preferred`` in order, then any ``listed`` ids not already shown."""
-    merged: list[str] = []
-    for model in (*preferred, *listed):
-        if model and model not in merged:
-            merged.append(model)
-    return merged
+    return [model for model in dict.fromkeys((*preferred, *listed)) if model]
 
 
 async def list_openai_models(
@@ -808,7 +804,7 @@ async def list_openai_models(
     try:
         async with asyncio.timeout(timeout_s):
             resp = await client.get(url, headers=headers)
-    except (TimeoutError, httpx.RequestError):
+    except (TimeoutError, httpx.RequestError, httpx.InvalidURL):
         return []
     if resp.status_code >= HTTP_STATUS_BAD_REQUEST:
         return []
@@ -819,12 +815,8 @@ async def list_openai_models(
     data = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(data, list):
         return []
-    ids: list[str] = []
-    for item in data:
-        model_id = item.get("id") if isinstance(item, dict) else None
-        if isinstance(model_id, str) and model_id and model_id not in ids:
-            ids.append(model_id)
-    return ids
+    ids = (item.get("id") if isinstance(item, dict) else None for item in data)
+    return list(dict.fromkeys(i for i in ids if isinstance(i, str) and i))
 
 
 async def validate_openai_key(
@@ -837,7 +829,7 @@ async def validate_openai_key(
     try:
         async with asyncio.timeout(timeout_s):
             resp = await client.get(
-                "https://api.openai.com/v1/models",
+                f"{OPENAI_API_BASE_URL}/models",
                 headers={"Authorization": f"Bearer {api_key}"},
             )
     except (TimeoutError, httpx.RequestError) as err:

@@ -5034,9 +5034,12 @@ async def test_stt_flow_keeps_other_fields_when_model_name_is_missing(
     assert _schema_marker(result, "extra_body").default() == '{"hotwords": "Frigate"}'
 
 
-def _select_values(form: Mapping[str, Any], field: str) -> list[str]:
-    selector = form["data_schema"].schema[_schema_marker(form, field)]
-    return [opt["value"] for opt in selector.config["options"]]
+def _select_config(form: Any, field: str) -> Mapping[str, Any]:
+    return form["data_schema"].schema[_schema_marker(form, field)].config
+
+
+def _select_values(form: Any, field: str) -> list[str]:
+    return [opt["value"] for opt in _select_config(form, field)["options"]]
 
 
 @pytest.mark.asyncio
@@ -5116,6 +5119,5 @@ async def test_stt_provider_flow_lists_openai_transcription_models(
     assert values[0] == "gpt-transcribe"
     assert "gpt-live-transcribe-2" in values
     assert "gpt-6-luna" not in values
-    selector = form["data_schema"].schema[_schema_marker(form, "model_name")]
-    assert selector.config["custom_value"] is True
+    assert _select_config(form, "model_name")["custom_value"] is True
     assert _LISTED_MODEL_CALLS == [("sk-shared", None)]

@@ -79,6 +79,7 @@ class TtsProviderSubentryFlow(ConfigSubentryFlow):
         self._name: str | None = None
         self._settings: dict[str, Any] = {}
         self._model: dict[str, Any] = {}
+        self._model_list_cache: dict[tuple[str | None, str | None], list[str]] = {}
 
     def _schedule_reload(self) -> None:
         entry = self._get_entry()
@@ -283,6 +284,7 @@ class TtsProviderSubentryFlow(ConfigSubentryFlow):
             self._settings,
             provider_id_key=CONF_TTS_OPENAI_PROVIDER_ID,
             category="tts",
+            cache=self._model_list_cache,
             builtin=(
                 [recommended_model]
                 if provider_type == "local"
