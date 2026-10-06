@@ -46,6 +46,7 @@ from ..const import (  # noqa: TID252
     SUBENTRY_TYPE_STT_PROVIDER,
 )
 from .openai_compatible_endpoint import (
+    async_model_options,
     build_local_endpoint_settings,
     build_openai_key_settings,
     current_subentry,
@@ -348,21 +349,22 @@ class SttProviderSubentryFlow(ConfigSubentryFlow):
             extra_body_prefill = _extra_body_text(model_data.get(CONF_STT_EXTRA_BODY))
 
         if provider_type == "local":
-            model_options = [
-                SelectOptionDict(
-                    label=RECOMMENDED_LOCAL_STT_MODEL,
-                    value=RECOMMENDED_LOCAL_STT_MODEL,
-                )
-            ]
+            builtin_models = [RECOMMENDED_LOCAL_STT_MODEL]
             recommended_model = RECOMMENDED_LOCAL_STT_MODEL
-            allow_custom_model = True
         else:
-            model_options = [
-                SelectOptionDict(label=model, value=model)
-                for model in get_args(STT_MODEL_OPENAI_SUPPORTED)
-            ]
+            builtin_models = list(get_args(STT_MODEL_OPENAI_SUPPORTED))
             recommended_model = RECOMMENDED_OPENAI_STT_MODEL
-            allow_custom_model = False
+        # Built-ins first, then whatever the backend's /v1/models lists; free
+        # text stays allowed so a model released after this list still works.
+        model_options = await async_model_options(
+            self,
+            provider_type,
+            self._settings,
+            provider_id_key=CONF_STT_OPENAI_PROVIDER_ID,
+            category="stt",
+            builtin=builtin_models,
+        )
+        allow_custom_model = True
 
         schema = vol.Schema(
             {

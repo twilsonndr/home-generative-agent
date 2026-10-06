@@ -55,15 +55,36 @@ DROPPABLE_SAMPLING_PARAMS = frozenset({"temperature", "top_p", "reasoning_effort
 
 _UNSUPPORTED_PARAM_CODES = frozenset({"unsupported_value", "unsupported_parameter"})
 
+# The Responses API reports nested request fields by dotted path; map them back
+# to the ConfigurableField id the retry nulls.
+_PARAM_ALIASES = {
+    "reasoning.effort": "reasoning_effort",
+    "reasoning": "reasoning_effort",
+}
+
 
 def unsupported_sampling_param(err: Exception) -> str | None:
     """Return the droppable sampling param an OpenAI 400 rejected, if any."""
     if OpenAIBadRequestError is None or not isinstance(err, OpenAIBadRequestError):
         return None
     param = getattr(err, "param", None)
+    param = _PARAM_ALIASES.get(param, param) if isinstance(param, str) else param
     code = getattr(err, "code", None)
     if param in DROPPABLE_SAMPLING_PARAMS and code in _UNSUPPORTED_PARAM_CODES:
         return param
+    # GPT-6-family models on /v1/chat/completions reject function tools with
+    # any reasoning_effort other than "none" (e.g. "Function tools with
+    # reasoning_effort are not supported for gpt-6-luna in
+    # /v1/chat/completions"), without a stable error code. Dropping the effort
+    # lets the request through on OpenAI-compatible proxies that only expose
+    # Chat Completions; the native OpenAI provider uses the Responses API.
+    message = str(getattr(err, "message", "") or err).lower()
+    if (
+        "reasoning_effort" in message
+        and "not supported" in message
+        and param in (None, "reasoning_effort", "tools")
+    ):
+        return "reasoning_effort"
     return None
 
 

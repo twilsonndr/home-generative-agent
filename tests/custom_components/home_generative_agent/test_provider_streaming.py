@@ -46,3 +46,15 @@ def test_anthropic_provider_primed_before_publish() -> None:
     prime = block.index("await async_prime_async_client(hass, anthropic_chat)")
     publish = block.index("anthropic_provider = anthropic_chat.configurable_fields(")
     assert prime < publish
+
+
+def test_openai_provider_uses_responses_api() -> None:
+    """Cloud OpenAI goes through /v1/responses (GPT-6 tools + reasoning)."""
+    block = _provider_block("openai_provider = ChatOpenAI(")
+    assert "use_responses_api=True" in block
+
+
+def test_openai_compatible_provider_stays_on_chat_completions() -> None:
+    """OpenAI-compatible servers rarely implement /v1/responses."""
+    block = _provider_block("openai_compatible_provider = ChatOpenAI(")
+    assert "use_responses_api" not in block
