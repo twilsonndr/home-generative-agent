@@ -2116,6 +2116,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
     openai_provider: RunnableSerializable[LanguageModelInput, BaseMessage] | None = None
     if openai_ok:
         try:
+            # Responses API, not Chat Completions: GPT-6-family models (e.g.
+            # gpt-6-luna, gpt-6.1-sol) reject function tools combined with
+            # reasoning_effort on /v1/chat/completions, and the agent always
+            # binds tools. langchain-openai maps reasoning_effort to
+            # reasoning.effort and max_tokens to max_output_tokens here.
+            # OpenAI-compatible servers below stay on Chat Completions since
+            # most do not implement /v1/responses.
             openai_provider = ChatOpenAI(
                 api_key=openai_secret,
                 timeout=120,
@@ -2123,6 +2130,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                 http_async_client=http_async_client,
                 streaming=True,
                 stream_usage=True,
+                use_responses_api=True,
             ).configurable_fields(
                 model_name=ConfigurableField(id="model_name"),
                 temperature=ConfigurableField(id="temperature"),

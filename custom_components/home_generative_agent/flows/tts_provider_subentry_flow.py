@@ -42,6 +42,7 @@ from ..const import (  # noqa: TID252
     TTS_SPEED_MIN,
 )
 from .openai_compatible_endpoint import (
+    async_model_options,
     build_local_endpoint_settings,
     build_openai_key_settings,
     current_subentry,
@@ -78,6 +79,7 @@ class TtsProviderSubentryFlow(ConfigSubentryFlow):
         self._name: str | None = None
         self._settings: dict[str, Any] = {}
         self._model: dict[str, Any] = {}
+        self._model_list_cache: dict[tuple[str | None, str | None], list[str]] = {}
 
     def _schedule_reload(self) -> None:
         entry = self._get_entry()
@@ -274,17 +276,22 @@ class TtsProviderSubentryFlow(ConfigSubentryFlow):
                     title=payload["name"],
                 )
 
-        if provider_type == "local":
-            model_options = [
-                SelectOptionDict(label=recommended_model, value=recommended_model)
-            ]
-            allow_custom_model = True
-        else:
-            model_options = [
-                SelectOptionDict(label=model, value=model)
-                for model in get_args(TTS_MODEL_OPENAI_SUPPORTED)
-            ]
-            allow_custom_model = False
+        # Built-ins first, then whatever the backend's /v1/models lists; free
+        # text stays allowed so a model released after this list still works.
+        model_options = await async_model_options(
+            self,
+            provider_type,
+            self._settings,
+            provider_id_key=CONF_TTS_OPENAI_PROVIDER_ID,
+            category="tts",
+            cache=self._model_list_cache,
+            builtin=(
+                [recommended_model]
+                if provider_type == "local"
+                else list(get_args(TTS_MODEL_OPENAI_SUPPORTED))
+            ),
+        )
+        allow_custom_model = True
 
         schema = vol.Schema(
             {
