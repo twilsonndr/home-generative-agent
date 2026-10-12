@@ -69,3 +69,10 @@ def test_every_openai_model_config_applies_the_api_choice() -> None:
     calls = _INIT.count("_openai_api_config(") - _INIT.count("def _openai_api_config(")
     # chat x2, vlm x2, summarization x2, cloud fallback x1
     assert calls == 7
+
+
+def test_every_model_config_records_usage() -> None:
+    """All primary (chat/vlm/summary x 5 providers) and fallback configs count."""
+    calls = _INIT.count("_usage_config(") - _INIT.count("def _usage_config(")
+    # 15 primary sites + cloud, anthropic and ollama fallback helpers
+    assert calls == 18

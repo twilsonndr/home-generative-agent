@@ -172,6 +172,40 @@ A forced choice that the backend cannot serve does not fail the turn:
 
 Both retries log a warning naming the rejected setting, so switching back to Automatic removes the extra round trip.
 
+### Estimated model costs
+
+HGA records the token usage each provider reports for every chat, camera-analysis and summary call (primary models and fallbacks) and turns it into five sensors:
+
+| Sensor | Value |
+| --- | --- |
+| **LLM cost (last call)** | Estimated cost of the most recent call. Attributes: model, API, provider, feature, token counts, and the 7-day average cost per call. |
+| **LLM cost (last 24 hours)** | Sum of the last 24 hours. |
+| **LLM cost (last 7 days)** | Sum of the last 7 days. |
+| **LLM cost projected per month (from last 24 hours)** | The last 24 hours scaled to an average month (30.44 days). |
+| **LLM cost projected per month (from last 7 days)** | The last 7 days scaled to an average month. |
+
+The window sensors carry a `by_model` attribute keyed by model and API (for example `gpt-5 (responses)`, `gpt-6-luna (chat_completions)`) with calls, tokens and cost, so you can compare Chat Completions and Responses API usage after switching a model's **OpenAI API** setting. Projections use the time actually tracked: after two days of use, the 7-day projection scales those two days, not seven.
+
+Usage is kept for 7 days in Home Assistant storage (`.storage/home_generative_agent.usage_costs`), so it survives restarts. Embedding calls are not counted.
+
+**Prices.** Costs are estimates in USD:
+
+- Built-in prices cover only models whose published prices agreed across sources when they were checked (the `prices_checked` attribute shows the date): `gpt-6-astra`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5` and `gemini-3.5-flash-lite`.
+- Local **Ollama** models are free.
+- Any other model, including GPT-6 Luna and Sol (sources disagreed), and every OpenAI-compatible server, is **unpriced** until you add a price: its calls are counted and listed in `unpriced_calls` / `unpriced_models`, but add nothing to the cost.
+
+Add or correct prices in the integration's **Options** (gear icon) under **Model prices for cost estimates**, as a JSON object in USD per 1 million tokens:
+
+```json
+{
+  "gpt-6-luna": [0.1, 0.5, 0.01],
+  "gpt-6.1-sol": {"input": 2.0, "output": 10.0, "cached_input": 0.2},
+  "my-llama-model": [0, 0]
+}
+```
+
+Each entry is `[input, output]`, `[input, output, cached_input]`, or an object with those keys. Cached input tokens (prompt-cache reads) bill at `cached_input`, or at `input` when it is not given. Model names match case-insensitively, and dated snapshots (`gpt-5-2025-08-07`, `claude-haiku-4-5-20251001`) use their base model's price. Check your provider's pricing page, as prices change. Cache writes, batch discounts and long-context surcharges are not modeled.
+
 ## Tool Retrieval (RAG)
 
 > **Thanks to [1Jamie](https://github.com/1Jamie) for this feature!**

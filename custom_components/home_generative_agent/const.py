@@ -1106,6 +1106,13 @@ SIGNAL_HGA_RECOGNIZED = "hga_recognized_people"
 SIGNAL_SENTINEL_RUN_COMPLETE = "hga_sentinel_run_complete"
 SIGNAL_TOOL_INDEX_UPDATED = "hga_tool_index_updated"
 
+# Fired after each recorded model call so the cost sensors refresh.
+SIGNAL_USAGE_COST_UPDATED = "home_generative_agent_usage_cost_updated"
+# Options: user price table for cost estimates, JSON text of
+# {model: {"input": .., "output": .., "cached_input": ..}} in USD per 1M tokens.
+CONF_MODEL_PRICES = "model_prices"
+
+
 # ---------------- Face recognition ----------------
 CONF_FACE_RECOGNITION = "face_recognition"
 RECOMMENDED_FACE_RECOGNITION: bool = False

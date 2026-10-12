@@ -470,7 +470,8 @@
           "tool_retrieval_limit": "Tool retrieval limit",
           "tool_relevance_threshold": "Tool relevance threshold",
           "tool_exclusions": "Excluded tools",
-          "tool_inclusions": "Always-included tools"
+          "tool_inclusions": "Always-included tools",
+          "model_prices": "Model prices for cost estimates (optional)"
         },
         "data_description": {
           "prompt": "Instruct how the LLM should respond. This can be a template.",
@@ -489,9 +490,13 @@
           "tool_inclusions": "Tools ticked here are always offered to the model: they are appended after vector-based tool retrieval, on top of the retrieval limit. Useful for general-purpose tools, such as web search, that similarity search may not select. The model still decides whether to use them. A tool cannot be both excluded and always included.",
           "video_analyzer_uniqueness_enabled": "Skip visually near-identical frames before VLM analysis. Warning: enabling this removes inter-frame motion context that the summary model uses to narrate movement. Only enable if a static scene generates excessive duplicates and you accept that motion continuity may be lost.",
           "video_analyzer_event_recording_enabled": "When a ring-mqtt event_select entity publishes a signed recordingUrl with a new eventId, download the event's MP4, extract up to 8 frames with ffmpeg and analyze those instead of the retained interval snapshot, which on battery cameras can be up to 10 minutes older than the event. Needs a Ring Protect subscription (cameras without a recordingUrl keep using snapshots) and the ffmpeg binary the official Home Assistant image ships.",
-          "video_analyzer_motion_camera_map": "One override per line: binary_sensor.X_motion: camera.Y — use this when automatic resolution picks the wrong camera. Leave blank to rely on device-based and name-based resolution."
+          "video_analyzer_motion_camera_map": "One override per line: binary_sensor.X_motion: camera.Y — use this when automatic resolution picks the wrong camera. Leave blank to rely on device-based and name-based resolution.",
+          "model_prices": "Prices in USD per 1 million tokens for the estimated-cost sensors, as a JSON object that maps each model name to a list [input, output] or [input, output, cached_input]. For example, a line \"gpt-6-luna\": [0.1, 0.5, 0.01] inside curly brackets. Entries add to or replace the built-in prices; local Ollama models are free. Leave empty to use the built-in prices only. Check your provider's price page, as prices change."
         }
       }
+    },
+    "error": {
+      "invalid_model_prices": "Model prices must be a JSON object that maps each model name to a list [input, output] or [input, output, cached_input] of non-negative numbers (or an object with input, output and cached_input keys)."
     }
   },
   "issues": {
@@ -514,6 +519,25 @@
     "unknown_person_rules_inert_no_analyzer": {
       "title": "Sentinel's unknown-person rules cannot fire",
       "description": "Affected rules:\n\n{rules}\n\n**Why this is showing:** face recognition is switched on and the database is present, but the video analyzer is turned off. Faces are only recognised while the analyzer is processing camera snapshots, so nothing ever produces the result.\n\n**To fix it:** set a video analyzer mode other than *disable* in the integration's options. The notice clears on the next reload.\n\nThese rules trigger only on a face-recognition result saying a person was seen but not recognised, and only the face-recognition pipeline produces it. Nothing errors and nothing is logged when it is missing, and the rules still count as active on the `sentinel_health` sensor, because from Sentinel's side they simply never match.\n\nSentinel's other rules are unaffected: unlocked locks, open entries, appliance and battery checks, and the Home Assistant & network security audit.\n\n**For camera coverage without face recognition**, approve a `motion_detected_*` rule from Sentinel's rule discovery — those alert on motion while nobody is home, or at night, and need no face service.\n\nIf you meant to run without these rules, ignore this notice — it is a statement about coverage, not a fault."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "llm_cost_last_call": {
+        "name": "LLM cost (last call)"
+      },
+      "llm_cost_24h": {
+        "name": "LLM cost (last 24 hours)"
+      },
+      "llm_cost_7d": {
+        "name": "LLM cost (last 7 days)"
+      },
+      "llm_cost_monthly_projection_24h": {
+        "name": "LLM cost projected per month (from last 24 hours)"
+      },
+      "llm_cost_monthly_projection_7d": {
+        "name": "LLM cost projected per month (from last 7 days)"
+      }
     }
   }
 }

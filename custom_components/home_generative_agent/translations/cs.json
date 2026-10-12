@@ -470,7 +470,8 @@
           "tool_retrieval_limit": "Limit načítání nástrojů",
           "tool_relevance_threshold": "Práh relevance nástrojů",
           "tool_exclusions": "Vyloučené nástroje",
-          "tool_inclusions": "Vždy zahrnuté nástroje"
+          "tool_inclusions": "Vždy zahrnuté nástroje",
+          "model_prices": "Ceny modelů pro odhad nákladů (volitelné)"
         },
         "data_description": {
           "prompt": "Instruujte LLM, jak má odpovídat. Může to být šablona.",
@@ -489,9 +490,13 @@
           "tool_inclusions": "Nástroje označené zde se modelu nabídnou vždy: přidávají se po vektorovém vyhledávání nástrojů, nad rámec limitu vyhledávání. Hodí se pro univerzální nástroje, například webové vyhledávání, které sémantické vyhledávání nemusí vybrat. Model sám rozhodne, zda je použije. Nástroj nemůže být zároveň vyloučený a vždy zahrnutý.",
           "video_analyzer_uniqueness_enabled": "Přeskočit vizuálně téměř identické snímky před analýzou VLM. Varování: povolení této funkce odstraní kontext pohybu mezi snímky, který souhrnný model používá k popisu pohybu. Povolte pouze v případě, že statická scéna generuje nadměrné duplikáty a akceptujete ztrátu kontinuity pohybu.",
           "video_analyzer_event_recording_enabled": "Když entita event_select z ring-mqtt zveřejní podepsanou recordingUrl s novým eventId, stáhne se MP4 dané události, pomocí ffmpeg se z něj vyberou až 8 snímků a analyzují se místo uchovaného intervalového snímku, který u bateriových kamer může být až 10 minut starší než událost. Vyžaduje předplatné Ring Protect (kamery bez recordingUrl dál používají snímky) a binárku ffmpeg, kterou oficiální obraz Home Assistant obsahuje.",
-          "video_analyzer_motion_camera_map": "Jedno přepsání na řádek: binary_sensor.X_motion: camera.Y — použijte, když automatické rozpoznávání vybere špatnou kameru. Ponechte prázdné pro spoléhání na rozpoznávání založené na zařízení a názvu."
+          "video_analyzer_motion_camera_map": "Jedno přepsání na řádek: binary_sensor.X_motion: camera.Y — použijte, když automatické rozpoznávání vybere špatnou kameru. Ponechte prázdné pro spoléhání na rozpoznávání založené na zařízení a názvu.",
+          "model_prices": "Ceny v USD za 1 milion tokenů pro senzory odhadovaných nákladů, jako objekt JSON, který každému názvu modelu přiřadí seznam [input, output] nebo [input, output, cached_input]. Například řádek \"gpt-6-luna\": [0.1, 0.5, 0.01] uvnitř složených závorek. Položky doplní nebo nahradí vestavěné ceny; místní modely Ollama jsou zdarma. Ponechte prázdné, chcete-li použít jen vestavěné ceny. Ověřte ceny na stránce svého poskytovatele, mění se."
         }
       }
+    },
+    "error": {
+      "invalid_model_prices": "Ceny modelů musí být objekt JSON, který každému názvu modelu přiřadí seznam [input, output] nebo [input, output, cached_input] nezáporných čísel (nebo objekt s klíči input, output a cached_input)."
     }
   },
   "issues": {
@@ -514,6 +519,25 @@
     "unknown_person_rules_inert_no_analyzer": {
       "title": "Pravidla Sentinelu pro neznámé osoby se nemohou spustit",
       "description": "Dotčená pravidla:\n\n{rules}\n\n**Proč se toto zobrazuje:** rozpoznávání tváří je zapnuté a databáze je k dispozici, ale analyzátor videa je vypnutý. Tváře se rozpoznávají pouze tehdy, když analyzátor zpracovává snímky z kamer, takže výsledek nikdy nevznikne.\n\n**Jak to opravit:** nastavte v možnostech integrace jiný režim analyzátoru videa než *disable*. Hlášení zmizí při dalším načtení.\n\nTato pravidla se spouštějí pouze na základě výsledku rozpoznávání tváří, který říká, že byla spatřena osoba, ale nebyla rozpoznána, a tento výsledek vytváří pouze pipeline rozpoznávání tváří. Když chybí, nic nezhavaruje a nic se nezaloguje a pravidla se na senzoru `sentinel_health` stále počítají jako aktivní, protože ze strany Sentinelu prostě nikdy nenastane shoda.\n\nOstatní pravidla Sentinelu tím nejsou ovlivněna: odemčené zámky, otevřené vstupy, kontroly spotřebičů a baterií a audit zabezpečení Home Assistant a sítě.\n\n**Pro pokrytí kamerami bez rozpoznávání tváří** schvalte pravidlo `motion_detected_*` ze zjišťování pravidel Sentinelu — ta upozorňují na pohyb, když nikdo není doma nebo v noci, a žádnou službu pro tváře nepotřebují.\n\nPokud jste chtěli běžet bez těchto pravidel, hlášení ignorujte — jde o konstatování o pokrytí, nikoli o závadu."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "llm_cost_last_call": {
+        "name": "Náklady LLM (poslední volání)"
+      },
+      "llm_cost_24h": {
+        "name": "Náklady LLM (posledních 24 hodin)"
+      },
+      "llm_cost_7d": {
+        "name": "Náklady LLM (posledních 7 dní)"
+      },
+      "llm_cost_monthly_projection_24h": {
+        "name": "Odhad měsíčních nákladů LLM (podle posledních 24 hodin)"
+      },
+      "llm_cost_monthly_projection_7d": {
+        "name": "Odhad měsíčních nákladů LLM (podle posledních 7 dní)"
+      }
     }
   }
 }

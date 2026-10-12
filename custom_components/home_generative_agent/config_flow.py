@@ -55,6 +55,7 @@ from .const import (
     CONF_MANAGE_CONTEXT_WITH_TOKENS,
     CONF_MAX_MESSAGES_IN_CONTEXT,
     CONF_MAX_TOKENS_IN_CONTEXT,
+    CONF_MODEL_PRICES,
     CONF_NOTIFY_SERVICE,
     CONF_PROMPT,
     CONF_SCHEMA_FIRST_YAML,
@@ -104,6 +105,7 @@ from .const import (
     VIDEO_ANALYZER_NOTIFICATION_COOLDOWN_MAX_S,
     VOICE_ACK_TIMINGS,
 )
+from .core.cost_tracker import parse_model_prices
 from .core.utils import (
     CannotConnectError,
     ensure_http_url,
@@ -775,6 +777,12 @@ async def _schema_for_options(
     schema.update(
         {
             vol.Optional(
+                CONF_MODEL_PRICES,
+                description={"suggested_value": opts.get(CONF_MODEL_PRICES)},
+            ): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)
+            ),
+            vol.Optional(
                 CONF_VOICE_TOOL_ACK,
                 description={"suggested_value": opts.get(CONF_VOICE_TOOL_ACK, "")},
             ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
@@ -821,6 +829,16 @@ async def _schema_for_options(
     )
 
     return schema
+
+
+def _model_prices_error(user_input: Mapping[str, Any]) -> str | None:
+    """Return a form error when the model price table does not parse."""
+    try:
+        parse_model_prices(user_input.get(CONF_MODEL_PRICES))
+    except (ValueError, TypeError) as err:
+        LOGGER.debug("Invalid model prices: %s", err)
+        return "invalid_model_prices"
+    return None
 
 
 # ---------------------------
@@ -1105,6 +1123,8 @@ class HomeGenerativeAgentOptionsFlow(OptionsFlowWithReload):
             err = self._maybe_edit_pin(options, user_input)
         if not err:
             err = self._tool_picker_overlap_error(user_input)
+        if not err:
+            err = _model_prices_error(user_input)
         if err:
             errors["base"] = err
 
