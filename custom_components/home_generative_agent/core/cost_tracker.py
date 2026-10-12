@@ -210,7 +210,13 @@ def estimate_cost(
 
 @dataclass(slots=True)
 class UsageRecord:
-    """One model call."""
+    """
+    One model call.
+
+    Only raw usage is kept; the cost is worked out from the current prices
+    whenever a summary is built, so a new or corrected price applies to every
+    retained call, not just to calls made after the change.
+    """
 
     ts: float
     category: str
@@ -220,7 +226,9 @@ class UsageRecord:
     input_tokens: int
     cached_tokens: int
     output_tokens: int
-    cost: float | None
+    # False when the provider reported no usage (e.g. a streamed reply from a
+    # server that does not send stream usage).
+    usage_reported: bool = True
 
 
 _RECORD_FIELDS = tuple(f.name for f in fields(UsageRecord))
@@ -232,7 +240,11 @@ def _record_to_dict(rec: UsageRecord) -> dict[str, Any]:
 
 
 def _window_summary(
-    records: Iterable[UsageRecord], *, since: float, span_s: float
+    records: Iterable[UsageRecord],
+    cost_fn: Callable[[UsageRecord], float | None],
+    *,
+    since: float,
+    span_s: float,
 ) -> dict[str, Any]:
     """Sum a window and project it to a month over the time actually covered."""
     calls = priced = 0
@@ -260,14 +272,15 @@ def _window_summary(
         bucket["calls"] += 1
         bucket["input_tokens"] += rec.input_tokens
         bucket["output_tokens"] += rec.output_tokens
-        if rec.cost is None:
+        rec_cost = cost_fn(rec)
+        if rec_cost is None:
             unpriced_models.add(rec.model)
             bucket["cost_usd"] = None
             continue
         priced += 1
-        cost += rec.cost
+        cost += rec_cost
         if bucket["cost_usd"] is not None:
-            bucket["cost_usd"] += rec.cost
+            bucket["cost_usd"] += rec_cost
     days = max(span_s, 3600.0) / DAY_S
     return {
         "cost_usd": cost,
@@ -323,8 +336,14 @@ class UsageCostTracker:
         self._started = float(data.get("started") or self._started)
         cutoff = time.time() - RETENTION_S
         for raw in data.get("records") or []:
+            if not isinstance(raw, dict):
+                continue
             try:
-                rec = UsageRecord(**raw)
+                # Unknown keys (e.g. a cost saved by an earlier build) are
+                # dropped; costs are recomputed from the current prices.
+                rec = UsageRecord(
+                    **{k: v for k, v in raw.items() if k in _RECORD_FIELDS}
+                )
             except TypeError:
                 continue
             if isinstance(rec.ts, (int, float)) and rec.ts >= cutoff:
@@ -366,6 +385,19 @@ class UsageCostTracker:
         """Return the price used for a model."""
         return price_for(model, provider_type, self._overrides)
 
+    def cost_of(self, record: UsageRecord) -> float | None:
+        """Return a call's cost at the current prices, or None if unpriced."""
+        price = self.price_for(record.model, record.provider)
+        if price is None or (
+            not record.usage_reported and (price.input or price.output)
+        ):
+            # No usage for a paid model: count the call as unpriced rather
+            # than as free.
+            return None
+        return estimate_cost(
+            price, record.input_tokens, record.cached_tokens, record.output_tokens
+        )
+
     @callback
     def async_record(self, record: UsageRecord) -> None:
         """Store one call; must run on the event loop."""
@@ -395,12 +427,20 @@ class UsageCostTracker:
             tracked_s = min(tracked_s, max(0.0, now - self._records[0].ts))
         last = self._records[-1] if self._records else None
         return {
-            "last_call": None if last is None else _record_to_dict(last),
+            "last_call": None
+            if last is None
+            else {**_record_to_dict(last), "cost": self.cost_of(last)},
             "day": _window_summary(
-                self._records, since=now - DAY_S, span_s=min(DAY_S, tracked_s)
+                self._records,
+                self.cost_of,
+                since=now - DAY_S,
+                span_s=min(DAY_S, tracked_s),
             ),
             "week": _window_summary(
-                self._records, since=now - WEEK_S, span_s=min(WEEK_S, tracked_s)
+                self._records,
+                self.cost_of,
+                since=now - WEEK_S,
+                span_s=min(WEEK_S, tracked_s),
             ),
             "prices_checked": PRICES_CHECKED,
         }
@@ -487,12 +527,6 @@ class UsageCostCallback(BaseCallbackHandler):
         input_tokens = _int(usage.get("input_tokens"))
         cached = _int(details.get("cache_read"))
         output_tokens = _int(usage.get("output_tokens"))
-        price = self._tracker.price_for(model, run["provider"])
-        if not usage and price is not None and (price.input or price.output):
-            # No usage reported (e.g. a streamed reply from a server that does
-            # not send stream usage): count the call, but as unpriced rather
-            # than as free.
-            price = None
         self._tracker.record_threadsafe(
             UsageRecord(
                 ts=time.time(),
@@ -503,7 +537,7 @@ class UsageCostCallback(BaseCallbackHandler):
                 input_tokens=input_tokens,
                 cached_tokens=cached,
                 output_tokens=output_tokens,
-                cost=estimate_cost(price, input_tokens, cached, output_tokens),
+                usage_reported=bool(usage),
             )
         )
 

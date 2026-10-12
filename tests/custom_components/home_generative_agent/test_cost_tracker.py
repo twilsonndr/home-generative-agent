@@ -131,29 +131,37 @@ def test_options_accepts_valid_prices() -> None:
 # ---------------------------------------------------------------------------
 
 
+# With this price a call's input token count sets its cost: 1M tokens is $1.
+TEST_PRICES = {"gpt-5": ModelPrice(1.0, 0.0)}
+
+
+def _tracker(hass: HomeAssistant) -> UsageCostTracker:
+    return UsageCostTracker(hass, TEST_PRICES)
+
+
 def _record(ts: float, cost: float | None, model: str = "gpt-5", **kw: Any) -> Any:
+    """Record a call costing ``cost`` at TEST_PRICES (None: an unpriced model)."""
     return UsageRecord(
         ts=ts,
         category=kw.get("category", "chat"),
         provider=kw.get("provider", "openai"),
-        model=model,
+        model="gpt-6-luna" if cost is None else model,
         api=kw.get("api", "responses"),
-        input_tokens=kw.get("input_tokens", 100),
+        input_tokens=round((cost or 0) * 1_000_000),
         cached_tokens=0,
         output_tokens=kw.get("output_tokens", 10),
-        cost=cost,
     )
 
 
 @pytest.mark.asyncio
 async def test_summary_windows_and_projections(hass: HomeAssistant) -> None:
     """24h and 7d windows sum costs and project over the covered time."""
-    tracker = UsageCostTracker(hass)
+    tracker = _tracker(hass)
     now = time.time()
     tracker._started = now - 10 * ct.DAY_S
     tracker.async_record(_record(now - 3 * ct.DAY_S, 0.70))
     tracker.async_record(_record(now - 3600, 0.20))
-    tracker.async_record(_record(now - 60, None, model="gpt-6-luna"))
+    tracker.async_record(_record(now - 60, None))
 
     summary = tracker.summary(now)
     day, week = summary["day"], summary["week"]
@@ -172,7 +180,7 @@ async def test_summary_windows_and_projections(hass: HomeAssistant) -> None:
 @pytest.mark.asyncio
 async def test_projection_uses_time_actually_tracked(hass: HomeAssistant) -> None:
     """Two days of data project from two days, not seven."""
-    tracker = UsageCostTracker(hass)
+    tracker = _tracker(hass)
     now = time.time()
     tracker._started = now - 2 * ct.DAY_S
     tracker.async_record(_record(now - ct.DAY_S, 1.0))
@@ -184,7 +192,7 @@ async def test_projection_uses_time_actually_tracked(hass: HomeAssistant) -> Non
 @pytest.mark.asyncio
 async def test_old_records_are_pruned(hass: HomeAssistant) -> None:
     """Records older than seven days are dropped when new ones arrive."""
-    tracker = UsageCostTracker(hass)
+    tracker = _tracker(hass)
     now = time.time()
     tracker.async_record(_record(now - 8 * ct.DAY_S, 5.0))
     tracker.async_record(_record(now, 1.0))
@@ -194,12 +202,12 @@ async def test_old_records_are_pruned(hass: HomeAssistant) -> None:
 @pytest.mark.asyncio
 async def test_records_persist_across_restarts(hass: HomeAssistant) -> None:
     """Flushed records load back; expired ones do not."""
-    tracker = UsageCostTracker(hass)
+    tracker = _tracker(hass)
     now = time.time()
     tracker.async_record(_record(now - 60, 0.5))
     await tracker.async_flush()
 
-    reloaded = UsageCostTracker(hass)
+    reloaded = _tracker(hass)
     await reloaded.async_load()
     assert reloaded.summary(now)["day"]["cost_usd"] == pytest.approx(0.5)
 
@@ -207,7 +215,7 @@ async def test_records_persist_across_restarts(hass: HomeAssistant) -> None:
 @pytest.mark.asyncio
 async def test_record_threadsafe_from_executor(hass: HomeAssistant) -> None:
     """Sync model calls in executor threads are recorded on the loop."""
-    tracker = UsageCostTracker(hass)
+    tracker = _tracker(hass)
     worker = threading.Thread(
         target=tracker.record_threadsafe, args=(_record(time.time(), 0.1),)
     )
@@ -321,10 +329,10 @@ async def test_user_price_applies_to_recorded_calls(hass: HomeAssistant) -> None
 @pytest.mark.asyncio
 async def test_sensors_expose_costs_and_breakdown(hass: HomeAssistant) -> None:
     """Each sensor reads its window; attributes carry the per-model breakdown."""
-    tracker = UsageCostTracker(hass)
+    tracker = _tracker(hass)
     now = time.time()
     tracker._started = now - 10 * ct.DAY_S
-    tracker.async_record(_record(now - 60, 0.25, input_tokens=500))
+    tracker.async_record(_record(now - 60, 0.25))
 
     sensors = {
         s.entity_description.key: s
@@ -344,7 +352,7 @@ async def test_sensors_expose_costs_and_breakdown(hass: HomeAssistant) -> None:
     )
     attrs = sensors["llm_cost_7d"].extra_state_attributes
     assert attrs is not None
-    assert attrs["by_model"]["gpt-5 (responses)"]["input_tokens"] == 500
+    assert attrs["by_model"]["gpt-5 (responses)"]["input_tokens"] == 250_000
     assert sensors["llm_cost_24h"].native_unit_of_measurement == "USD"
     assert sensors["llm_cost_24h"].unique_id == "llm_cost_24h::entry1"
 
@@ -378,7 +386,7 @@ async def test_call_without_usage_counts_as_unpriced(hass: HomeAssistant) -> Non
 @pytest.mark.asyncio
 async def test_closed_tracker_drops_late_calls(hass: HomeAssistant) -> None:
     """After unload, a call still in flight does not reach the old tracker."""
-    tracker = UsageCostTracker(hass)
+    tracker = _tracker(hass)
     await tracker.async_flush()
     tracker.async_record(_record(time.time(), 1.0))
     assert len(tracker._records) == 0
@@ -390,7 +398,7 @@ async def test_record_cap_limits_projection_span(
 ) -> None:
     """When the cap drops calls, projections use only the time still covered."""
     monkeypatch.setattr(ct, "MAX_RECORDS", 2)
-    tracker = UsageCostTracker(hass)
+    tracker = _tracker(hass)
     now = time.time()
     tracker._started = now - 10 * ct.DAY_S
     for age in (3, 2, 1):
@@ -398,3 +406,57 @@ async def test_record_cap_limits_projection_span(
     week = tracker.summary(now)["week"]
     assert week["covered_days"] == pytest.approx(2.0)
     assert week["projected_monthly_usd"] == pytest.approx(2.0 / 2 * ct.DAYS_PER_MONTH)
+
+
+@pytest.mark.asyncio
+async def test_price_change_reprices_retained_calls(hass: HomeAssistant) -> None:
+    """A corrected price applies to calls already recorded, after a reload too."""
+    tracker = _tracker(hass)
+    now = time.time()
+    tracker.async_record(_record(now - 60, 0.5))
+    await tracker.async_flush()
+
+    repriced = UsageCostTracker(hass, {"gpt-5": ModelPrice(2.0, 0.0)})
+    await repriced.async_load()
+    summary = repriced.summary(now)
+    assert summary["day"]["cost_usd"] == pytest.approx(1.0)
+    assert summary["last_call"]["cost"] == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_load_ignores_legacy_and_bad_records(hass: HomeAssistant) -> None:
+    """A stored cost from an earlier build is ignored; malformed rows are skipped."""
+    now = time.time()
+    legacy = {
+        "ts": now - 60,
+        "category": "chat",
+        "provider": "openai",
+        "model": "gpt-5",
+        "api": "responses",
+        "input_tokens": 1_000_000,
+        "cached_tokens": 0,
+        "output_tokens": 0,
+        "cost": 99.0,
+    }
+    tracker = _tracker(hass)
+    await tracker._store.async_save(
+        {"started": now - ct.DAY_S, "records": [legacy, "junk", {"ts": now}]}
+    )
+    reloaded = _tracker(hass)
+    await reloaded.async_load()
+    assert len(reloaded._records) == 1
+    assert reloaded.summary(now)["day"]["cost_usd"] == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_unreported_usage_is_unpriced_but_free_models_stay_free(
+    hass: HomeAssistant,
+) -> None:
+    """No usage means unknown cost for a paid model, but zero for a free one."""
+    tracker = _tracker(hass)
+    paid = _record(time.time(), 0.0)
+    paid.usage_reported = False
+    free = _record(time.time(), 0.0, provider="ollama", model="llama3")
+    free.usage_reported = False
+    assert tracker.cost_of(paid) is None
+    assert tracker.cost_of(free) == 0.0

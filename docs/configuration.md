@@ -206,7 +206,7 @@ Add or correct prices in the integration's **Options** (gear icon) under **Model
 }
 ```
 
-Each entry is `[input, output]`, `[input, output, cached_input]`, or an object with those keys. Cached input tokens (prompt-cache reads) bill at `cached_input`, or at `input` when it is not given. Model names match case-insensitively, and dated snapshots (`gpt-5-2025-08-07`, `claude-haiku-4-5-20251001`) use their base model's price. Check your provider's pricing page, as prices change. Cache writes, batch discounts and long-context surcharges are not modeled.
+Each entry is `[input, output]`, `[input, output, cached_input]`, or an object with those keys. Cached input tokens (prompt-cache reads) bill at `cached_input`, or at `input` when it is not given. Model names match case-insensitively, and dated snapshots (`gpt-5-2025-08-07`, `claude-haiku-4-5-20251001`) use their base model's price. Only token counts are stored, and costs are worked out from the current prices, so a price you add or correct also applies to the calls already in the 24-hour and 7-day windows. Check your provider's pricing page, as prices change. Cache writes, batch discounts and long-context surcharges are not modeled.
 
 ## Tool Retrieval (RAG)
 
