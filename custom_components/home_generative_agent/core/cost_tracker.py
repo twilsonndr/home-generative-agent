@@ -587,6 +587,20 @@ class UsageCostTracker:
         }
 
 
+async def async_remove_usage_store(hass: HomeAssistant) -> None:
+    """
+    Delete the stored usage records (when the config entry is removed).
+
+    Reloads and restarts keep the store; only removing the entry for good
+    clears it, so a re-added integration does not show the old install's
+    calls. A failure is logged, never raised into the removal.
+    """
+    try:
+        await Store(hass, STORAGE_VERSION, STORAGE_KEY, private=True).async_remove()
+    except Exception:
+        LOGGER.warning("Could not delete stored usage costs.", exc_info=True)
+
+
 def _api_from_response(
     response_metadata: Mapping[str, Any], provider_type: str | None
 ) -> str | None:

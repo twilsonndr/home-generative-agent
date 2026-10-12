@@ -15,10 +15,14 @@ from langchain_core.language_models.fake_chat_models import (
     FakeMessagesListChatModel,
 )
 from langchain_core.messages import AIMessage
-from pytest_homeassistant_custom_component.common import async_fire_time_changed
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
+import custom_components.home_generative_agent as hga_component
 from custom_components.home_generative_agent.config_flow import _model_prices_error
-from custom_components.home_generative_agent.const import CONF_MODEL_PRICES
+from custom_components.home_generative_agent.const import CONF_MODEL_PRICES, DOMAIN
 from custom_components.home_generative_agent.core import cost_tracker as ct
 from custom_components.home_generative_agent.core.cost_tracker import (
     META_CATEGORY,
@@ -761,3 +765,19 @@ async def test_flush_failure_is_contained(
         await tracker.async_flush()
     assert tracker._closed
     assert "Could not save usage costs" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_removing_the_entry_deletes_the_usage_store(hass: HomeAssistant) -> None:
+    """A removed-and-re-added integration starts with no old calls."""
+    tracker = _tracker(hass)
+    tracker.async_record(_record(time.time() - 60, 0.5))
+    await tracker.async_flush()
+
+    await cast("Any", hga_component).async_remove_entry(
+        hass, MockConfigEntry(domain=DOMAIN)
+    )
+
+    fresh = _tracker(hass)
+    await fresh.async_load()
+    assert len(fresh._records) == 0

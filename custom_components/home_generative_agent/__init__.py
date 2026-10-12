@@ -242,7 +242,11 @@ from .const import (
 from .core.anthropic_client import SharedClientChatAnthropic, async_prime_async_client
 from .core.cost_tracker import META_CATEGORY as USAGE_META_CATEGORY
 from .core.cost_tracker import META_PROVIDER as USAGE_META_PROVIDER
-from .core.cost_tracker import UsageCostTracker, parse_model_prices
+from .core.cost_tracker import (
+    UsageCostTracker,
+    async_remove_usage_store,
+    parse_model_prices,
+)
 from .core.database_guard import (
     async_clear_database_issue,
     async_sync_database_issue,
@@ -4533,14 +4537,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool
 
 async def async_remove_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> None:
     """
-    Clear every per-entry repair issue when the entry is deleted for good.
+    Clear per-entry state when the entry is deleted for good.
 
-    Every one is keyed by entry_id, so a remove-and-re-add (new entry_id)
-    would otherwise leave the old ones standing until a restart.
+    Every repair issue is keyed by entry_id, so a remove-and-re-add (new
+    entry_id) would otherwise leave the old ones standing until a restart.
+    The usage-cost store has one fixed key, so it is deleted too; Home
+    Assistant runs this after the entry's unload flushed it.
     """
     async_clear_database_issue(hass, entry.entry_id)
     async_clear_pin_pipeline_issue(hass, entry.entry_id)
     async_clear_unknown_person_issue(hass, entry.entry_id)
+    await async_remove_usage_store(hass)
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:  # noqa: C901, PLR0912, PLR0915
