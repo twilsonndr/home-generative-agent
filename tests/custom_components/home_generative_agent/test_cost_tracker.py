@@ -635,3 +635,40 @@ async def test_breakdown_separates_providers_of_the_same_model(
     assert by_model["gpt-5 (responses, openai)"]["cost_usd"] == pytest.approx(0.5)
     # Plain entries price compatible servers too; scope one to change that.
     assert by_model["gpt-5 (responses, openai_compatible)"]["calls"] == 1
+
+
+@pytest.mark.parametrize("bad", [10**400, -5, ct.MAX_TOKEN_COUNT + 1])
+def test_implausible_token_counts_are_rejected(bad: int) -> None:
+    """Stored rows and provider usage with absurd counts never reach the math."""
+    row = {
+        "ts": time.time(),
+        "category": "chat",
+        "provider": "openai",
+        "model": "gpt-5",
+        "api": None,
+        "input_tokens": bad,
+        "cached_tokens": 0,
+        "output_tokens": 0,
+    }
+    assert ct._record_from_dict(row) is None
+    assert ct._int(bad) == 0
+
+
+@pytest.mark.asyncio
+async def test_callback_ignores_absurd_reported_usage(hass: HomeAssistant) -> None:
+    """A provider reporting an absurd count records zero, not a crash."""
+    tracker = UsageCostTracker(hass)
+    reply = AIMessage(
+        content="hi",
+        usage_metadata={
+            "input_tokens": 10**400,
+            "output_tokens": 5,
+            "total_tokens": 10**400,
+        },
+        response_metadata={"model_name": "gpt-5", "id": "resp_1"},
+    )
+    await _model_returning(reply, tracker).ainvoke("hello")
+    await hass.async_block_till_done()
+    last = tracker.summary()["last_call"]
+    assert last["input_tokens"] == 0
+    assert last["output_tokens"] == 5

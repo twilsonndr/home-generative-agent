@@ -60,6 +60,9 @@ WEEK_S = 7 * DAY_S
 # Average month length used for the projections.
 DAYS_PER_MONTH = 30.437
 TOKENS_PER_PRICE_UNIT = 1_000_000
+# Largest token count accepted for one call. Far above any real request, and
+# small enough that cost arithmetic can never overflow a float.
+MAX_TOKEN_COUNT = 10**12
 # Shortest span a projection scales from (see _window_summary).
 MIN_PROJECTION_SPAN_S = 3600.0
 # Per-call records kept at most; at a call a minute this is about two weeks.
@@ -285,8 +288,12 @@ def _is_number(value: Any) -> TypeGuard[float]:
 
 
 def _is_count(value: Any) -> bool:
-    """Return True for a non-negative int token count (bool excluded)."""
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+    """Return True for a plausible token count: an int in [0, MAX_TOKEN_COUNT]."""
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= MAX_TOKEN_COUNT
+    )
 
 
 def _record_from_dict(raw: Any) -> UsageRecord | None:
@@ -570,7 +577,8 @@ def _api_from_response(
 
 
 def _int(value: Any) -> int:
-    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+    """Return a reported token count, or 0 when missing or implausible."""
+    return value if _is_count(value) else 0
 
 
 class UsageCostCallback(BaseCallbackHandler):
