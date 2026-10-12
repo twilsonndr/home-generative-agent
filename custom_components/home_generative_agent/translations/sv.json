@@ -1,0 +1,519 @@
+{
+  "common": {
+    "feature_overwrite_warning": "⚠️ Funktioner är redan konfigurerade. Om du väljer **Grundläggande konfiguration** skrivs dina nuvarande leverantörstilldelningar över med rekommenderade standardvärden.",
+    "sentinel_overwrite_warning": "⚠️ Sentinel är redan konfigurerad. Om du väljer **Grundläggande konfiguration** skrivs dina nuvarande inställningar över med rekommenderade standardvärden. Dina entitetsundantag och kopplingar mellan kameror och entréer behålls.",
+    "no_model_provider_notice": "Ingen modelleverantör är konfigurerad. En standardmodell tilldelas så snart en finns tillgänglig.",
+    "no_capable_model_provider_notice": "Ingen av dina modelleverantörer stöder den här funktionen. Lägg till ytterligare en modelleverantör av en typ som stöds - du kan lägga till en leverantör för varje tjänst du använder, och varje funktion kan peka på en egen.",
+    "supported_provider_types_label": "Stöds här:"
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Generative Agent",
+        "description": "Standardfunktioner skapas. Kör sedan **Konfiguration** för att aktivera/konfigurera funktioner och databasen, och lägg därefter till en **Modelleverantör**."
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan inte nå tjänsten. Kontrollera nycklar/URL:er och försök igen.",
+      "invalid_auth": "Ogiltig API-nyckel.",
+      "invalid_pin": "PIN-koden måste vara 4–10 siffror.",
+      "tool_excluded_and_included": "Ett verktyg kan inte både vara undantaget och alltid inkluderat. Ta bort det från en av de två listorna.",
+      "unknown": "Oväntat fel."
+    }
+  },
+  "config_subentries": {
+    "database": {
+      "entry_type": "tjänst",
+      "abort": {
+        "reconfigure_successful": "Databaskonfigurationen har uppdaterats."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurera om databas",
+        "user": "Konfigurera databas"
+      },
+      "step": {
+        "set_options": {
+          "title": "Databaskonfiguration",
+          "description": "Ange de parametrar som behövs för databasen",
+          "data": {
+            "username": "Databasens användarnamn",
+            "password": "Databasens lösenord",
+            "host": "Databasvärd",
+            "port": "Databasport (valfritt)",
+            "db_name": "Databasnamn",
+            "db_params": "Parametrar för databasanslutning (valfritt)"
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kunde inte ansluta till databasen. Kontrollera databasinställningarna och försök igen.",
+        "invalid_auth": "Ogiltig autentisering.",
+        "invalid_uri": "URI:n kunde inte genereras.",
+        "unknown": "Oväntat fel."
+      }
+    },
+    "model_provider": {
+      "entry_type": "tjänst",
+      "abort": {
+        "reconfigure_successful": "Modelleverantören har uppdaterats."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurera om modelleverantör",
+        "user": "Lägg till modelleverantör"
+      },
+      "step": {
+        "deployment": {
+          "title": "Driftsättning",
+          "description": "Välj var den här leverantören körs. **Edge** körs lokalt på ditt eget nätverk (Ollama, OpenAI Compatible). **Cloud** (moln) är ett värdbaserat API (OpenAI, Gemini, Anthropic). Valet avgör bara vilka leverantörstyper nästa steg erbjuder - du kan lägga till hur många leverantörer du vill, av båda slagen, och peka varje funktion på en egen.",
+          "data": {
+            "deployment": "Driftsättning"
+          }
+        },
+        "provider": {
+          "title": "Leverantör",
+          "description": "Välj leverantörstyp och namn. Lägg till en separat leverantör för varje tjänst du vill använda - till exempel Anthropic för konversation och Gemini för inbäddningar, eftersom Anthropic saknar en slutpunkt för inbäddningar.",
+          "data": {
+            "provider_type": "Leverantör",
+            "name": "Leverantörsnamn"
+          },
+          "data_description": {
+            "name": "Lämna namnet tomt för att namnge den efter leverantörstypen du väljer."
+          }
+        },
+        "settings": {
+          "title": "Leverantörsinställningar",
+          "description": "Konfigurera leverantörens slutpunkt eller inloggningsuppgifter.",
+          "data": {
+            "base_url": "Bas-URL",
+            "api_key": "API-nyckel",
+            "gemini_api_key": "Gemini API-nyckel",
+            "anthropic_api_key": "Anthropic API-nyckel"
+          },
+          "data_description": {
+            "api_key": "Krävs för OpenAI. För OpenAI Compatible-leverantörer lämnar du fältet tomt eller anger 'none' om slutpunkten inte kräver autentisering."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kan inte nå leverantören.",
+        "invalid_auth": "Ogiltiga inloggningsuppgifter.",
+        "unknown": "Oväntat fel."
+      }
+    },
+    "stt_provider": {
+      "entry_type": "tjänst",
+      "abort": {
+        "reconfigure_successful": "STT-leverantören har uppdaterats."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurera om STT-leverantör",
+        "user": "Lägg till STT-leverantör"
+      },
+      "step": {
+        "provider": {
+          "title": "Leverantör för tal till text",
+          "description": "Välj leverantörstyp och namn.",
+          "data": {
+            "provider_type": "Leverantör",
+            "name": "Leverantörsnamn"
+          }
+        },
+        "credentials": {
+          "title": "Inloggningsuppgifter",
+          "description": "Välj hur STT-leverantören ska autentiseras. Lokala leverantörer ansluter i stället till en OpenAI-kompatibel server-URL.",
+          "data": {
+            "openai_provider_subentry_id": "Återanvänd OpenAI-modelleverantör",
+            "api_key": "API-nyckel",
+            "base_url": "Server-URL"
+          },
+          "data_description": {
+            "api_key": "Krävs för OpenAI. Valfritt för lokala servrar som inte kräver autentisering.",
+            "base_url": "OpenAI-kompatibel slutpunkt för den lokala STT-servern, t.ex. en Speaches-instans. Ett saknat /v1-suffix läggs till automatiskt."
+          }
+        },
+        "model": {
+          "title": "Modell och avancerade alternativ",
+          "description": "Välj en modell och valfria avancerade inställningar.",
+          "data": {
+            "model_name": "Modell",
+            "language": "Språk (valfritt)",
+            "prompt": "Prompt (valfritt)",
+            "temperature": "Temperatur (valfritt)",
+            "translate": "Översätt till engelska",
+            "response_format": "Svarsformat",
+            "request_format": "Begäransformat",
+            "extra_body": "Extra innehåll i begäran (JSON, valfritt)"
+          },
+          "data_description": {
+            "request_format": "Hur ljudet skickas. Multipart-uppladdning är OpenAI:s eget format och fungerar överallt. JSON med base64-ljud är OpenRouters inbyggda transkriberingsformat - välj det bara om din server dokumenterar det. Det saknar slutpunkt för översättningar och ignorerar fältet Prompt ovan.",
+            "extra_body": "Ett JSON-objekt som slås samman med begärans innehåll, för fält som HGA inte exponerar. På OpenRouter är det här leverantörsalternativ som nyckelordsviktning anges, och de kräver JSON-begäransformatet. Se STT-avsnittet i dokumentationen för ett genomarbetat exempel. Lämna tomt om du är osäker."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kan inte nå leverantören.",
+        "invalid_auth": "Ogiltiga inloggningsuppgifter.",
+        "invalid_model": "Välj en giltig modell.",
+        "not_supported": "Leverantören stöds inte än.",
+        "unknown": "Oväntat fel.",
+        "invalid_extra_body": "Extra innehåll i begäran måste vara ett JSON-objekt.",
+        "reserved_extra_body_key": "Extra innehåll i begäran kan inte ange stream, file eller input_audio - de styrs av Home Generative Agent."
+      }
+    },
+    "tts_provider": {
+      "entry_type": "tjänst",
+      "abort": {
+        "reconfigure_successful": "TTS-leverantören har uppdaterats."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurera om TTS-leverantör",
+        "user": "Lägg till TTS-leverantör"
+      },
+      "step": {
+        "provider": {
+          "title": "Leverantör för text till tal",
+          "description": "Välj leverantörstyp och namn.",
+          "data": {
+            "provider_type": "Leverantör",
+            "name": "Leverantörsnamn"
+          }
+        },
+        "credentials": {
+          "title": "Inloggningsuppgifter",
+          "description": "Välj hur TTS-leverantören ska autentiseras. Lokala leverantörer ansluter i stället till en OpenAI-kompatibel server-URL.",
+          "data": {
+            "openai_provider_subentry_id": "Återanvänd OpenAI-modelleverantör",
+            "api_key": "API-nyckel",
+            "base_url": "Server-URL"
+          },
+          "data_description": {
+            "api_key": "Krävs för OpenAI. Valfritt för lokala servrar som inte kräver autentisering.",
+            "base_url": "OpenAI-kompatibel slutpunkt för den lokala TTS-servern, t.ex. en Speaches-instans. Ett saknat /v1-suffix läggs till automatiskt."
+          }
+        },
+        "model": {
+          "title": "Modell, röst och avancerade alternativ",
+          "description": "Välj modell och röst samt valfria avancerade inställningar.",
+          "data": {
+            "model_name": "Modell",
+            "voice": "Röst",
+            "speed": "Hastighet",
+            "instructions": "Röstinstruktioner (valfritt)"
+          },
+          "data_description": {
+            "voice": "OpenAI: alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer eller verse. Lokalt: ett röst-id som serverns modell tillhandahåller, t.ex. af_heart för Kokoro.",
+            "speed": "Multiplikator för uppspelningshastighet, 0,25 till 4,0. 1,0 är normal hastighet.",
+            "instructions": "Hur rösten ska låta, t.ex. ton eller tempo. Används endast av OpenAI:s gpt-4o-mini-tts-modeller; ignoreras annars."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kan inte nå leverantören.",
+        "invalid_auth": "Ogiltiga inloggningsuppgifter.",
+        "invalid_model": "Välj en giltig modell.",
+        "not_supported": "Leverantören stöds inte än.",
+        "unknown": "Oväntat fel."
+      }
+    },
+    "sentinel": {
+      "entry_type": "tjänst",
+      "abort": {
+        "reconfigure_successful": "Sentinel-konfigurationen har uppdaterats."
+      },
+      "error": {
+        "invalid_camera_entry_links": "Måste vara ett JSON-objekt som mappar kamerors entitets-ID:n till listor med entréers entitets-ID:n, t.ex. nyckeln \"camera.driveway\" med värdet [\"lock.front_door\"].",
+        "invalid_pin": "PIN-koden måste vara 4–10 siffror.",
+        "quiet_hours_incomplete": "Ange både start och slut för tysta timmar (eller sätt båda till Inaktiverad).",
+        "invalid_quiet_hours": "Tysta timmar måste vara lokala timmar mellan 0 och 23.",
+        "invalid_rule_entity_exclusions": "Måste vara ett JSON-objekt som mappar en avvikelsetyp (eller \"*\" för alla typer) till listor med entitets-ID:n eller glob-mönster (endast jokertecknen * och ?, gemena tecken för entitets-ID), där var och en innehåller en punkt och minst ett bokstavligt tecken, t.ex. nyckeln \"appliance_power_duration\" med värdet [\"sensor.ac_power\"] eller nyckeln \"camera_entry_unsecured\" med värdet [\"camera.map_*\"]. Poster som matchar allt, till exempel \"*\" eller \"*.*\", är inte tillåtna — använd typnyckeln \"*\" i stället."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurera om Sentinel",
+        "user": "Konfigurera Sentinel"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Konfiguration av Sentinel",
+          "description": "Välj hur Sentinel-övervakningen ska konfigureras.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Konfigurationstyp"
+          }
+        },
+        "basic_settings": {
+          "title": "Sentinel",
+          "description": "Konfigurera de viktigaste Sentinel-inställningarna. Alla andra alternativ använder rekommenderade standardvärden.",
+          "data": {
+            "sentinel_enabled": "Aktivera avvikelselarm",
+            "sentinel_daily_digest_enabled": "Aktivera daglig sammanfattningsavisering",
+            "sentinel_daily_digest_time": "Tid för daglig sammanfattning (HH:MM:SS)",
+            "critical_action_pin": "PIN för nivåhöjning (valfritt, 4–10 siffror)",
+            "notify_service": "Aviseringstjänst (valfritt)"
+          }
+        },
+        "settings": {
+          "title": "Sentinel",
+          "description": "Konfigurera proaktiv övervakning och upptäckt med Sentinel.",
+          "data": {
+            "sentinel_enabled": "Aktivera avvikelselarm",
+            "sentinel_interval_seconds": "Sentinel-intervall (sekunder)",
+            "sentinel_cooldown_minutes": "Sentinel-vilotid per typ (minuter)",
+            "sentinel_entity_cooldown_minutes": "Sentinel-vilotid per entitet (minuter)",
+            "sentinel_pending_prompt_ttl_minutes": "Livslängd för väntande frågor (minuter)",
+            "sentinel_discovery_enabled": "Aktivera upptäckt (kräver avvikelselarm)",
+            "sentinel_discovery_interval_seconds": "Upptäcktsintervall (sekunder)",
+            "sentinel_discovery_max_records": "Max antal upptäcktsposter att behålla",
+            "sentinel_triage_enabled": "Aktivera LLM-triage av fynd",
+            "sentinel_triage_timeout_seconds": "Tidsgräns för triage (sekunder)",
+            "sentinel_response_language": "Språk för förklaringar av fynd (valfritt)",
+            "sentinel_baseline_enabled": "Aktivera insamling av baslinje (kräver avvikelselarm)",
+            "sentinel_baseline_update_interval_minutes": "Uppdateringsintervall för baslinje (minuter)",
+            "sentinel_baseline_freshness_threshold_seconds": "Aktualitetströskel för baslinje (sekunder)",
+            "sentinel_baseline_weekly_patterns": "Aktivera baslinjer per veckodag (minskar falsklarm under helger)",
+            "sentinel_baseline_dow_min_samples": "Minsta antal mätvärden för veckodagsbaslinje (veckor med data per tidsfack)",
+            "sentinel_baseline_min_samples": "Minsta antal mätvärden i baslinjen innan avvikelselarm utlöses",
+            "sentinel_baseline_sustained_minutes": "Spärr för cyklisk last: minuter över tröskeln innan larm (0 = inaktiverad)",
+            "sentinel_appliance_power_threshold_w": "Regel för apparateffekt: effekttröskel (W)",
+            "sentinel_appliance_duration_min": "Regel för apparateffekt: varaktighet innan larm (minuter)",
+            "sentinel_network_enabled": "Aktivera säkerhetsgranskning av nätverk och Home Assistant",
+            "sentinel_network_offline_device_min": "Tröskel för frånkopplad säkerhetsenhet (minuter)",
+            "sentinel_network_unknown_device_grace_min": "Respittid för ny nätverksenhet (minuter)",
+            "sentinel_network_guest_idle_days": "Tröskel för oanvänt gäst-Wi-Fi (dagar)",
+            "sentinel_network_audit_share_details": "Dela detaljer från säkerhetsgranskningen med chattmodellen",
+            "sentinel_ha_token_stale_days": "Tröskel för gammal långlivad token (dagar)",
+            "sentinel_auth_ip_retention_days": "Lagringstid för adresser i autentiseringsinventariet (dagar)",
+            "explain_enabled": "Aktivera LLM-förklaringar av Sentinel-fynd",
+            "sentinel_require_pin_for_level_increase": "Kräv PIN för höjning av autonominivå",
+            "sentinel_daily_digest_enabled": "Aktivera daglig sammanfattningsavisering",
+            "sentinel_daily_digest_time": "Tid för daglig sammanfattning (HH:MM:SS)",
+            "sentinel_quiet_hours_start": "Start för tysta timmar (undertrycker valda allvarlighetsgrader)",
+            "sentinel_quiet_hours_end": "Slut för tysta timmar",
+            "sentinel_quiet_hours_severities": "Allvarlighetsgrader som undertrycks under tysta timmar",
+            "sentinel_camera_entry_links": "Kopplingar mellan kameror och entréer (JSON, valfritt)",
+            "sentinel_rule_entity_exclusions_all": "Undanta entiteter från alla Sentinel-regler (valfritt)",
+            "sentinel_rule_entity_exclusions": "Avancerat: entitetsundantag per regel (JSON, valfritt)",
+            "critical_action_pin": "Sentinel-PIN för nivåhöjning (valfritt)",
+            "notify_service": "Sentinel-aviseringstjänst (valfritt)"
+          },
+          "data_description": {
+            "explain_enabled": "Låt en modell formulera varje larm i stället för att använda regelns egen fasta sammanfattning. Detta ändrar bara hur ett larm lyder -- aldrig om du får det, vilket avgörs av LLM-triage ovan. Det kostar ett modellanrop per larm som faktiskt skickas och körs efter triage, så ett undertryckt fynd når aldrig hit. Säkerhetslarm för Home Assistant och nätverk samt larm om avlarmning behåller alltid sin exakta formulering och påverkas inte. Ange språket för förklaringar av fynd nedan för att få formuleringen skriven på ett annat språk. Av som standard.",
+            "sentinel_response_language": "Språk för den LLM-skrivna förklaringen av fynd som visas i aviseringar, t.ex. 'tjeckiska'. Lämna tomt för engelska. Titel/sammanfattning för upptäcktskandidater och triagebeslut/reason_code/sammanfattning påverkas inte -- de tolkas av kod och förblir alltid på engelska.",
+            "sentinel_rule_entity_exclusions_all": "Välj entiteter som Sentinel ska ignorera överallt -- t.ex. ett mallås på en pekpanel som bara speglar en annan entitets tillstånd. Undantagna entiteter tas bort från alla reglers fynd och väcker inte längre Sentinel, så en verklig avvikelse som rör dem upptäcks först vid nästa avläsning (standard 5 minuter). Undanta inte en kamera, ett lås eller en larmpanel som du fortfarande vill få omedelbara larm från.",
+            "sentinel_rule_entity_exclusions": "För att undanta en entitet från endast en specifik regel (inte alla) och för glob-mönster som camera.map_*, som väljaren ovan inte kan hantera. Förväntar ett JSON-objekt vars nycklar är avvikelsetyper och vars värden är listor med entitets-ID:n; nyckeln \"*\" betyder alla regler. Se Sentinel-dokumentationen för exempel. De flesta behöver inte detta -- använd väljaren ovan i stället.",
+            "sentinel_triage_enabled": "Kör ett extra LLM-anrop per fynd som kan undertrycka larm med lågt värde. Kräver en konfigurerad chattmodell och Sentinel-autonominivå 1 eller högre -- på nivå 0 har reglaget ingen effekt. Modellen kan bara undertrycka eller släppa igenom ett fynd -- den ändrar, skapar eller agerar aldrig på ett, och vid fel eller timeout släpps fyndet igenom. Av som standard.",
+            "sentinel_triage_timeout_seconds": "Hur länge triageanropet ska inväntas innan fyndet släpps igenom oförändrat.",
+            "sentinel_network_enabled": "Kör säkerhetsreglerna för Home Assistant och nätverk vid varje Sentinel-cykel och låter chattagenten köra dem på begäran: administratörskonton och åtkomsttoken, entiteter som exponeras för röstassistenter, tilläggsportar, radioparkopplingar, UPnP i routern och, med en routerintegration, enheterna på ditt nätverk. Inget skannar nätverket -- alla uppgifter kommer från det Home Assistant redan känner till. När det är av visas reglerna som inaktiva på hälsosensorn och granskningsverktyget rapporterar att de är avstängda. På som standard.",
+            "sentinel_network_offline_device_min": "Hur länge ett lås, en larmpanel eller en kamera får vara otillgänglig innan Sentinel rapporterar det. Standard 30 minuter.",
+            "sentinel_network_unknown_device_grace_min": "Minuter att vänta efter att en enhet som är ny på nätverket först setts innan Sentinel rapporterar den, så att en enhet som kommer och går ändå rapporteras men aldrig i samma ögonblick som den dyker upp. Kräver en routerintegration. Standard 5; 0 rapporterar direkt.",
+            "sentinel_network_guest_idle_days": "Antal dagar gäst-Wi-Fi får vara aktiverat utan någon ansluten gäst innan Sentinel föreslår att det stängs av. Kräver en routerintegration som rapporterar gästnätverket (i dag eero). Standard 7.",
+            "sentinel_network_audit_share_details": "När det är på ger chattagentens säkerhetsgranskning chattmodellen detaljerna om fynden (enhetsnamn, portar, tokennamn) så att den kan förklara dem. När det är av får modellen bara antal, allvarlighetsgrader och fasta titlar, och hela rapporten skickas som en beständig avisering i Home Assistant när en administratör har frågat (en röstsatellit eller ett konto utan administratörsbehörighet får bara sammanfattningen). Nätverksadresser maskeras i båda fallen. På som standard.",
+            "sentinel_ha_token_stale_days": "Ålder i dagar efter vilken en långlivad åtkomsttoken rapporteras. Home Assistant registrerar inte när en långlivad token används, så åldern är den enda tillgängliga uppgiften och larmet föreslår att gamla token byts ut. Standard 90.",
+            "sentinel_auth_ip_retention_days": "Hur länge en adress som setts använda en åtkomsttoken finns kvar i säkerhetsgranskningens inventarie. Adresser lagras som envägshashar, aldrig i klartext, och högst 20 sparas per token. Standard 90 dagar."
+          }
+        }
+      }
+    },
+    "feature": {
+      "entry_type": "tjänst",
+      "abort": {
+        "reconfigure_successful": "Funktionen har uppdaterats.",
+        "setup_complete": "Konfigurationen är klar.",
+        "no_provider_for_basic_setup": "Ingen modelleverantör är konfigurerad. Lägg först till en **Modelleverantör** och försök sedan konfigurera igen."
+      },
+      "error": {
+        "no_providers": "Inga modelleverantörer är konfigurerade.",
+        "cannot_connect": "Kunde inte ansluta till databasen. Kontrollera inställningarna och försök igen.",
+        "invalid_auth": "Ogiltig autentisering.",
+        "invalid_uri": "URI:n kunde inte genereras.",
+        "unknown": "Oväntat fel."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurera om funktion",
+        "user": "Konfiguration"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Konfiguration",
+          "description": "Välj en konfigurationstyp. Grundläggande konfiguration aktiverar alla funktioner med rekommenderade standardvärden. Avancerad konfiguration ger dig full kontroll över varje funktion.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Konfigurationstyp"
+          }
+        },
+        "setup_status": {
+          "title": "Konfigurationen är klar",
+          "description": "Konfigurationen är klar.\n\n**Aktiverade funktioner:** {features_enabled}{skipped_section}\n\n**Databas:** {database_status}\n\n**Nästa steg:**\n- Kör **Konfigurera Sentinel** för att aktivera avvikelseövervakning.\n- Lägg till en **STT-leverantör** för röstinmatning.\n- Gå till **Inställningar → Röstassistenter** för att lägga till Home Generative Agent som din röstassistent."
+        },
+        "feature_enable": {
+          "title": "Konfiguration av funktioner",
+          "description": "**Konversation** är alltid aktiverad. Aktivera eller inaktivera valfria funktioner nedan.",
+          "data": {
+            "camera_image_analysis": "Analys av kamerabilder",
+            "conversation_summary": "Konversationssammanfattning",
+            "embedding": "Inbäddningar"
+          },
+          "data_description": {
+            "embedding": "Inbäddningsmodell för semantiskt minne och verktygssökning. När den är av väljs leverantören automatiskt (konversationsleverantören om den stöder inbäddningar)."
+          }
+        },
+        "feature_provider": {
+          "title": "Välj modelleverantör",
+          "description": "Välj en modelleverantör för {feature_name}.",
+          "data": {
+            "model_provider_id": "Modelleverantör"
+          }
+        },
+        "feature_model": {
+          "title": "{feature_name}",
+          "description": "Konfigurera modellinställningar för den här funktionen. {provider_notice}",
+          "data": {
+            "model_name": "Modell",
+            "fallback_provider_ids": "Reservleverantörer",
+            "temperature": "Temperatur",
+            "keepalive_s": "Ollama keepalive (sekunder eller Ladda aldrig ur (-1))",
+            "context_size": "Ollama-kontextstorlek (token)",
+            "reasoning": "Tänkande / resonemang",
+            "reasoning_budget": "Tankebudget (token)",
+            "openai_api": "OpenAI API"
+          },
+          "data_description": {
+            "fallback_provider_ids": "Ordnad lista med reservleverantörer. Den första tillgängliga leverantören används om den primära misslyckas.",
+            "reasoning": "Styr modellens tänkande för den valda chattmodellen. Leverantörens standard lämnar serverns/modellens beteende oförändrat; Av och På anger det uttryckligen; ansträngningsnivåer skickas till leverantörer som stöder dem. Inställningarna sparas per modellnamn, så när du byter modell återställs varje modells konfiguration.",
+            "reasoning_budget": "Valfri budget för tanketoken för leverantörer som stöder det (OpenAI-kompatibla servrar som llama.cpp, Gemini, Anthropic). Lämna tomt för leverantörens standard.",
+            "openai_api": "Vilket OpenAI API den här modellen använder. Automatiskt väljer det bästa för modellen: Responses API för GPT-6-chattmodeller (de kan inte kombinera verktyg och resonemang i Chat Completions) och för OpenAI-modeller som bara erbjuds där (codex, pro), och Chat Completions i övriga fall. Välj ett uttryckligen för att åsidosätta, till exempel Responses API på en OpenAI-kompatibel server som stöder det. Om det valda API:et inte kan hantera en begäran görs ett nytt försök automatiskt (Chat Completions med resonemang avstängt för GPT-6-verktygsanrop, eller Chat Completions när en server saknar Responses API). Valet sparas per modellnamn."
+          }
+        },
+        "database": {
+          "title": "Databaskonfiguration",
+          "description": "Ange de parametrar som behövs för databasen.",
+          "data": {
+            "username": "Databasens användarnamn",
+            "password": "Databasens lösenord",
+            "host": "Databasvärd",
+            "port": "Databasport (valfritt)",
+            "db_name": "Databasnamn",
+            "db_params": "Parametrar för databasanslutning (valfritt)"
+          }
+        },
+        "instructions": {
+          "title": "Lägg till en modelleverantör",
+          "description": "Ingen modelleverantör är konfigurerad än. Lägg till en via **Modelleverantör**."
+        }
+      }
+    }
+  },
+  "selector": {
+    "setup_mode": {
+      "options": {
+        "basic": "Grundläggande konfiguration",
+        "advanced": "Avancerad konfiguration"
+      }
+    },
+    "db_params": {
+      "fields": {
+        "key": {
+          "name": "Nyckel",
+          "description": "Namn på anslutningsparameter (till exempel: sslmode, connect_timeout)"
+        },
+        "value": {
+          "name": "Värde",
+          "description": "Värde för anslutningsparameter (till exempel: disable, 30)"
+        }
+      }
+    },
+    "stt_request_format": {
+      "options": {
+        "multipart": "Multipart-uppladdning (standard)",
+        "json_base64": "JSON med base64-ljud"
+      }
+    },
+    "voice_ack_timing": {
+      "options": {
+        "turn_start": "Så snart agenten startar",
+        "tool_call": "Före det första verktygsanropet"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_config_entry": {
+      "message": "Ogiltig konfigurationspost angavs. Fick {config_entry}"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Alternativ för Home Generative Agent",
+        "description": "Konfigurera globalt beteende och promptar.",
+        "data": {
+          "face_api_url": "URL till API för ansiktsigenkänning (valfritt)",
+          "prompt": "Instruktioner",
+          "vlm_response_language": "Språk för kamerabeskrivningar (valfritt)",
+          "vlm_prompt_extra": "Ytterligare instruktioner för kameraanalys (valfritt)",
+          "llm_hass_api": "Styr Home Assistant",
+          "video_analyzer_mode": "Läge för videoanalys",
+          "video_analyzer_uniqueness_enabled": "Aktivera bildfilter med perceptuell hash (dHash)",
+          "video_analyzer_event_recording_enabled": "Analysera Ring-händelseinspelningar (ring-mqtt, Ring Protect)",
+          "video_analyzer_motion_camera_map": "Rörelsesensor → kamera-åsidosättningar (valfritt)",
+          "notify_service": "Aviseringstjänst för videoanalys (valfritt)",
+          "video_analyzer_notification_cooldown_s": "Vilotid för kameraaviseringar (sekunder)",
+          "video_analyzer_house_notification_cooldown_s": "Vilotid för husaviseringar (sekunder)",
+          "face_recognition": "Aktivera ansiktsigenkänning",
+          "manage_context_with_tokens": "Metod för kontexthantering",
+          "max_tokens_in_context": "Max antal token i chattkontexten",
+          "max_messages_in_context": "Max antal meddelanden i chattkontexten",
+          "critical_action_pin_enabled": "Kräv PIN för kritiska åtgärder",
+          "critical_action_pin": "PIN för kritiska åtgärder (krävs för att låsa upp/larma på/öppna känsliga enheter)",
+          "schema_first_yaml": "Schemabaserad JSON för YAML-förfrågningar",
+          "stt_filters_section": "Filter för talinmatning",
+          "stt_hallucination_patterns": "Ignorerade STT-delsträngar",
+          "stt_hallucination_exact_patterns": "Ignorerade exakta STT-fraser",
+          "voice_tool_acknowledgement": "Talad bekräftelse (endast röst)",
+          "voice_tool_acknowledgement_timing": "När bekräftelsen ska sägas",
+          "tool_retrieval_limit": "Gräns för verktygshämtning",
+          "tool_relevance_threshold": "Relevanströskel för verktyg",
+          "tool_exclusions": "Undantagna verktyg",
+          "tool_inclusions": "Alltid inkluderade verktyg"
+        },
+        "data_description": {
+          "prompt": "Instruera hur LLM:en ska svara. Detta kan vara en mall.",
+          "vlm_response_language": "Språk för VLM-beskrivningar av kamerabilder, t.ex. 'tjeckiska'. Lämna tomt för engelska. Det interna svaret 'Scene unchanged.' förblir alltid på engelska.",
+          "vlm_prompt_extra": "Extra instruktioner som läggs till i VLM-prompten för kameraanalys, t.ex. 'Ignorera bilar på uppfarten'. De ersätter aldrig de inbyggda reglerna.",
+          "video_analyzer_notification_cooldown_s": "0 stänger av den. När en kameraavisering har ljudit ersätter senare aviseringar från samma kamera inom så här många sekunder (högst 600) tyst samma avisering med den senaste bildtexten och bilden, i stället för att ljuda igen. Med ansiktsigenkänning på ljuder ändå den första okända personen under perioden. Fungerar endast med en enda aviseringstjänst för companion-appen (notify.mobile_app_...).",
+          "video_analyzer_house_notification_cooldown_s": "0 stänger av den. En händelse som ses av flera kameror får varje kamera att avisera. När en kameraavisering har ljudit publicerar en avisering från valfri kamera inom så här många sekunder (högst 60) fortfarande sitt eget kort, men tyst, och den kameran förblir sedan tyst under sin vilotid för kameraaviseringar, eller så här många sekunder om det är längre, räknat från det ljudet. Med kameravilotiden avstängd är varje kamera, inklusive den som ljöd, tyst i så här många sekunder. Med ansiktsigenkänning på ljuder ändå den första okända personen under perioden. Börja med cirka 15 sekunder: varje kameras video analyseras separat, så en händelse kan nå kamerorna med 10 till 30 sekunders mellanrum. Fungerar endast med en enda aviseringstjänst för companion-appen (notify.mobile_app_...); endast verifierat på iOS.",
+          "schema_first_yaml": "När detta är aktiverat besvaras YAML-förfrågningar med strikt JSON som konverteras till YAML.",
+          "stt_hallucination_patterns": "En delsträng per rad. Om en STT-transkription innehåller någon post ignoreras den innan LLM:en körs. Matchningen är skiftlägesokänslig.",
+          "stt_hallucination_exact_patterns": "En fras per rad. Om hela STT-transkriptionen är lika med någon post ignoreras den innan LLM:en körs. Matchningen är skiftlägesokänslig.",
+          "voice_tool_acknowledgement": "Sägs av en röstsatellit medan agenten arbetar med en begäran, så att en långsam fråga inte möts av tystnad (till exempel \"Ett ögonblick.\"). Endast vid röstinteraktioner, högst en gång per svar; nästa alternativ anger när. Kräver HGA:s text till tal-motor eller en annan strömmande motor. Skriv den på din assistents språk. Lämna tomt för att stänga av.",
+          "voice_tool_acknowledgement_timing": "Så snart agenten startar täcker hela väntetiden, inklusive en lokal modells tid före sitt första ord, men sägs också före ett svar som inte behöver några verktyg (så välj en neutral formulering som \"Ett ögonblick.\"). Före det första verktygsanropet sägs bara vid interaktioner som använder verktyg, efter att modellen har startat.",
+          "tool_retrieval_limit": "Det maximala antalet verktyg som hämtas baserat på semantisk likhet med användarens fråga.",
+          "tool_relevance_threshold": "Det minsta semantiska likhetsvärdet (0,0 till 1,0) som krävs för att ett verktyg ska hämtas.",
+          "tool_exclusions": "Verktyg som markeras här erbjuds aldrig modellen och körs aldrig, även om den ber om ett med namn. Lämna tomt för att exponera alla verktyg i alla valda API:er. Verktyg som en server lägger till senare är tillgängliga som standard.",
+          "tool_inclusions": "Verktyg som markeras här erbjuds alltid modellen: de läggs till efter den vektorbaserade verktygshämtningen, utöver hämtningsgränsen. Användbart för allmänna verktyg, som webbsökning, som likhetssökningen kanske inte väljer. Modellen avgör fortfarande om de ska användas. Ett verktyg kan inte både vara undantaget och alltid inkluderat.",
+          "video_analyzer_uniqueness_enabled": "Hoppa över visuellt nästan identiska bildrutor före VLM-analysen. Varning: om detta aktiveras försvinner rörelsekontexten mellan bildrutor som sammanfattningsmodellen använder för att beskriva rörelser. Aktivera bara om en statisk scen genererar för många dubbletter och du accepterar att rörelsekontinuiteten kan gå förlorad.",
+          "video_analyzer_event_recording_enabled": "När en ring-mqtt event_select-entitet publicerar en signerad recordingUrl med ett nytt eventId laddas händelsens MP4 ned, upp till 8 bildrutor extraheras med ffmpeg och de analyseras i stället för den sparade intervallögonblicksbilden, som på batterikameror kan vara upp till 10 minuter äldre än händelsen. Kräver en Ring Protect-prenumeration (kameror utan recordingUrl fortsätter att använda ögonblicksbilder) och den ffmpeg-binär som den officiella Home Assistant-avbildningen innehåller.",
+          "video_analyzer_motion_camera_map": "En åsidosättning per rad: binary_sensor.X_motion: camera.Y — använd detta när den automatiska matchningen väljer fel kamera. Lämna tomt för att förlita dig på matchning baserad på enhet och namn."
+        }
+      }
+    }
+  },
+  "issues": {
+    "database_not_configured": {
+      "title": "Home Generative Agent körs utan databas",
+      "description": "Den här posten saknar en databasunderpost, så den körs enbart med lagring i minnet. Konversationshistoriken går förlorad vid varje omladdning eller omstart, långtidsminnet (konversationssammanfattningar, återkallelse av kameraaktivitet, samtycke till pålarmning) och ansiktsigenkänningen (persongalleriet) är otillgängliga, och Sentinels baslinjebaserade avvikelsedetektor är avstängd. Sentinel-regler, aviseringar och granskningsloggen fortsätter att fungera.\n\nDatabasunderposten skapas via **+ Konfiguration** på integrationssidan: **Grundläggande** skapar den med rekommenderade standardvärden, och **Avancerad** avslutas med steget **Databaskonfiguration** som testar anslutningen innan den sparas. Det här tillståndet uppstår antingen om **+ Konfiguration** inte körs efter att integrationen lagts till, eller om den avancerade guiden stängs vid det sista steget (funktionerna sparas före det, så posten laddas ändå).\n\nÅtgärda det genom att öppna **Inställningar → Enheter och tjänster → Home Generative Agent**, klicka på **+ Konfiguration**, välja **Avancerad**, gå igenom funktionerna och fylla i formuläret **Databaskonfiguration**. Med den medföljande appen PostgreSQL med pgvector är standardvärdena (`localhost`, port `5432`, databas `ha_db`, användare `ha_user`) korrekta. Problemet försvinner så snart posten laddas med en databasunderpost."
+    },
+    "pin_bypassed_by_local_intents": {
+      "title": "PIN för kritiska åtgärder skyddar inte talade kommandon",
+      "description": "Berörda pipelines för röstassistenter: {pipelines}.\n\nDessa använder Home Generative Agent som konversationsagent och har **Föredra att hantera kommandon lokalt** aktiverat. Home Assistant matchar då enkla kommandon mot sina egna inbyggda meningar och kör dem själv, inklusive upplåsning av ett lås, innan agenten ens anropas. Agenten ser aldrig kommandot, så PIN-koden för kritiska åtgärder kan inte hålla kvar det för bekräftelse.\n\nÅtgärda det genom att öppna **Inställningar → Röstassistenter**, redigera varje pipeline som listas ovan och stänga av **Föredra att hantera kommandon lokalt**.\n\nOm ett lås eller ett skydd aldrig ska kunna styras med rösten, sluta även att exponera det under **Inställningar → Röstassistenter → Exponera**. Det är den enda kontrollen som även täcker meningsutlösare och vägar som inte går via agenten."
+    },
+    "unknown_person_rules_inert_no_face": {
+      "title": "Sentinels regler för okända personer kan inte utlösas",
+      "description": "Berörda regler:\n\n{rules}\n\n**Varför detta visas:** ansiktsigenkänningen är avstängd, så inget producerar det resultat som reglerna behöver.\n\n**Så aktiverar du den:** ange URL:en till ansiktstjänsten och aktivera ansiktsigenkänning i integrationens alternativ, se till att posten har en databasunderpost (persongalleriet finns där) och ange ett läge för videoanalys — ansikten känns bara igen medan analysen bearbetar ögonblicksbilder. Meddelandet försvinner vid nästa omladdning när det fungerar.\n\nDessa regler utlöses endast av ett resultat från ansiktsigenkänningen som säger att en person har setts men inte känts igen, och endast ansiktsigenkänningens pipeline producerar det. Inga fel uppstår och inget loggas när det saknas, och reglerna räknas fortfarande som aktiva på sensorn `sentinel_health`, eftersom de ur Sentinels perspektiv helt enkelt aldrig matchar.\n\nSentinels övriga regler påverkas inte: olåsta lås, öppna entréer, kontroller av apparater och batterier samt säkerhetsgranskningen av Home Assistant och nätverket.\n\n**För kamerabevakning utan ansiktsigenkänning** kan du godkänna en `motion_detected_*`-regel från Sentinels regelupptäckt — de larmar vid rörelse när ingen är hemma, eller på natten, och behöver ingen ansiktstjänst.\n\nOm du avsåg att köra utan dessa regler kan du ignorera det här meddelandet — det är en upplysning om täckning, inte ett fel."
+    },
+    "unknown_person_rules_inert_no_gallery": {
+      "title": "Sentinels regler för okända personer kan inte utlösas",
+      "description": "Berörda regler:\n\n{rules}\n\n**Varför detta visas:** ansiktsigenkänningen är påslagen, men den här posten saknar databas, så det finns inget persongalleri att känna igen någon mot. Ansiktsigenkänningen inaktiveras därför vid start.\n\n**Så åtgärdar du det:** lägg till en databasunderpost med **+ Konfiguration** på integrationssidan. Den baslinjebaserade avvikelsedetekteringen är avstängd av samma anledning och börjar också fungera igen. Meddelandet försvinner vid nästa omladdning.\n\nDessa regler utlöses endast av ett resultat från ansiktsigenkänningen som säger att en person har setts men inte känts igen, och endast ansiktsigenkänningens pipeline producerar det. Inga fel uppstår och inget loggas när det saknas, och reglerna räknas fortfarande som aktiva på sensorn `sentinel_health`, eftersom de ur Sentinels perspektiv helt enkelt aldrig matchar.\n\nSentinels övriga regler påverkas inte: olåsta lås, öppna entréer, kontroller av apparater och batterier samt säkerhetsgranskningen av Home Assistant och nätverket.\n\n**För kamerabevakning utan ansiktsigenkänning** kan du godkänna en `motion_detected_*`-regel från Sentinels regelupptäckt — de larmar vid rörelse när ingen är hemma, eller på natten, och behöver ingen ansiktstjänst.\n\nOm du avsåg att köra utan dessa regler kan du ignorera det här meddelandet — det är en upplysning om täckning, inte ett fel."
+    },
+    "unknown_person_rules_inert_no_analyzer": {
+      "title": "Sentinels regler för okända personer kan inte utlösas",
+      "description": "Berörda regler:\n\n{rules}\n\n**Varför detta visas:** ansiktsigenkänningen är påslagen och databasen finns, men videoanalysen är avstängd. Ansikten känns bara igen medan analysen bearbetar ögonblicksbilder från kameror, så inget producerar någonsin resultatet.\n\n**Så åtgärdar du det:** ange ett annat läge för videoanalys än *disable* i integrationens alternativ. Meddelandet försvinner vid nästa omladdning.\n\nDessa regler utlöses endast av ett resultat från ansiktsigenkänningen som säger att en person har setts men inte känts igen, och endast ansiktsigenkänningens pipeline producerar det. Inga fel uppstår och inget loggas när det saknas, och reglerna räknas fortfarande som aktiva på sensorn `sentinel_health`, eftersom de ur Sentinels perspektiv helt enkelt aldrig matchar.\n\nSentinels övriga regler påverkas inte: olåsta lås, öppna entréer, kontroller av apparater och batterier samt säkerhetsgranskningen av Home Assistant och nätverket.\n\n**För kamerabevakning utan ansiktsigenkänning** kan du godkänna en `motion_detected_*`-regel från Sentinels regelupptäckt — de larmar vid rörelse när ingen är hemma, eller på natten, och behöver ingen ansiktstjänst.\n\nOm du avsåg att köra utan dessa regler kan du ignorera det här meddelandet — det är en upplysning om täckning, inte ett fel."
+    }
+  }
+}
