@@ -27,6 +27,8 @@ from ..const import (  # noqa: TID252
     CONF_EXPLAIN_ENABLED,
     CONF_FEATURE_FALLBACK_PROVIDER_IDS,
     CONF_FEATURE_MODEL,
+    CONF_FEATURE_MODEL_API,
+    CONF_FEATURE_MODEL_API_BY_MODEL,
     CONF_FEATURE_MODEL_CONTEXT_SIZE,
     CONF_FEATURE_MODEL_KEEPALIVE,
     CONF_FEATURE_MODEL_NAME,
@@ -108,6 +110,9 @@ from ..const import (  # noqa: TID252
     CONF_VLM_PROVIDER,
     FEATURE_CATEGORY_MAP,
     MODEL_CATEGORY_SPECS,
+    OPENAI_API_EXPLICIT,
+    OPENAI_API_OPTION_KEYS,
+    OPENAI_API_PROVIDER_TYPES,
     RECOMMENDED_DB_HOST,
     RECOMMENDED_DB_NAME,
     RECOMMENDED_DB_PARAMS,
@@ -976,6 +981,12 @@ def _apply_feature_model_to_options(
                 CONF_FEATURE_MODEL_REASONING
             )
 
+    if (
+        provider_type in OPENAI_API_PROVIDER_TYPES
+        and category in OPENAI_API_OPTION_KEYS
+    ):
+        _apply_openai_api_to_options(options, category, model_data)
+
     if category == "chat":
         reasoning_val = model_data.get(CONF_FEATURE_MODEL_REASONING)
         if reasoning_val is not None:
@@ -986,6 +997,29 @@ def _apply_feature_model_to_options(
         by_model = model_data.get(CONF_FEATURE_MODEL_REASONING_BY_MODEL)
         if isinstance(by_model, Mapping) and by_model:
             options[CONF_CHAT_REASONING_BY_MODEL] = dict(by_model)
+
+
+def _apply_openai_api_to_options(
+    options: dict[str, Any], category: str, model_data: Mapping[str, Any]
+) -> None:
+    """
+    Copy a feature's OpenAI API choice (flat and per model) into options.
+
+    Automatic is the absence of a value, so only explicit choices are copied.
+    """
+    flat_key, by_model_key = OPENAI_API_OPTION_KEYS[category]
+    api_val = model_data.get(CONF_FEATURE_MODEL_API)
+    if api_val in OPENAI_API_EXPLICIT:
+        options[flat_key] = api_val
+    by_model = model_data.get(CONF_FEATURE_MODEL_API_BY_MODEL)
+    if isinstance(by_model, Mapping):
+        remembered = {
+            str(name): api
+            for name, api in by_model.items()
+            if api in OPENAI_API_EXPLICIT
+        }
+        if remembered:
+            options[by_model_key] = remembered
 
 
 MODEL_CATEGORIES = ("chat", "vlm", "summarization", "embedding")

@@ -79,7 +79,7 @@ Feature setup can include an ordered list of fallback providers. A fallback appl
 
 Fallbacks are evaluated at setup/reload time and at runtime:
 
-- If the primary provider is unavailable when the integration starts or reloads, HGA selects the first usable configured fallback and logs `Fallback selected at setup ...`. That selected provider remains active until the integration is reloaded or Home Assistant restarts. If the primary provider comes back online later, HGA does not automatically switch back during the same runtime.
+- If the primary provider is unavailable when the integration starts or reloads, HGA selects the first usable configured fallback and logs `Fallback selected at setup ...`. A provider that a model category uses (as its primary or in its fallback chain) and that failed its startup health check is checked again once Home Assistant has finished starting, then after 30 seconds, 1, 2 and 5 minutes, and every 5 minutes after that while it stays down. As soon as one answers, HGA reloads itself so it is used again, and logs `... answered after failing its health check at setup; reloading Home Generative Agent`. This covers a provider that only timed out while Home Assistant was busy starting, and a primary that comes back online later: HGA switches back to it with that reload, which interrupts any reply in progress. These automatic reloads happen at most once every 5 minutes; if one leaves a provider still failing its check, the gap doubles each time, up to once an hour, until a reload passes every check. A provider whose key is rejected is checked once more after startup and then left alone until you fix its settings.
 - If the active provider fails during a model call with a retryable error, HGA tries the next configured fallback provider for that call and logs the runtime fallback activation. Retryable failures include local transport/connectivity errors, timeouts, rate limits, and transient provider/server errors.
 - If no fallback is configured for a category and the primary provider is unavailable at setup, HGA keeps a placeholder model for that category and logs this at debug level. Configure a fallback for each category that should degrade to another provider.
 
@@ -120,7 +120,7 @@ What each choice sends depends on the provider:
 | --- | --- | --- | --- | --- |
 | Ollama | `reasoning: false` | `reasoning: true` | passed through for gpt-oss models; other models treat any effort as On | not supported by the Ollama API |
 | OpenAI Compatible (llama.cpp, vLLM, …) | `reasoning_effort: none` + `chat_template_kwargs: {enable_thinking: false}` | `chat_template_kwargs: {enable_thinking: true}` | `reasoning_effort` — free-form values (e.g. `xhigh`) pass through verbatim; the server owns the vocabulary | `thinking_budget_tokens` (recent llama.cpp servers; older servers ignore it) |
-| OpenAI | not sent (choose the `none` effort level on models that support it) | not sent | `reasoning.effort` via the Responses API: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; a model that rejects a level is retried without it automatically | not supported |
+| OpenAI | not sent (choose the `none` effort level on models that support it) | not sent | `reasoning_effort`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (GPT-6-family models are sent through the Responses API as `reasoning.effort`, since they reject tools plus reasoning on Chat Completions); a model that rejects a level is retried without it automatically | not supported |
 | Gemini | `thinking_budget: 0` | `thinking_budget` (dynamic when no budget set) | not offered | `thinking_budget` |
 | Anthropic | not sent (thinking is off by default) | extended thinking with `budget_tokens` | not applicable (only Off/On offered) | `budget_tokens`, clamped to 1024–32768; `max_tokens` is raised above the budget and temperature is pinned to 1, as the API requires |
 
@@ -152,6 +152,25 @@ Notes:
 > **Gemini 3 temperature** — Google strongly recommends leaving Gemini 3 models at their default temperature of `1.0`; lower values can cause looping or degraded reasoning. Gemini accepts a low temperature without error, so HGA handles this at setup time instead: when a Gemini 3-family model is selected and the feature's temperature is still the recommended default (`0.2`, which predates Gemini 3), HGA sends `1.0` and leaves `top_p` unset so the API defaults apply. A temperature you have explicitly changed away from the default is sent as configured — with a warning in the log pointing at Google's guidance. Gemini 2.5 and earlier models always use the configured values. This applies to primary and fallback Gemini models alike; non-Gemini models in the same feature keep the configured temperature.
 
 ---
+
+### OpenAI API: Chat Completions or Responses
+
+For **OpenAI** and **OpenAI Compatible** providers, the Conversation, Camera Image Analysis and Conversation Summary model forms have an **OpenAI API** setting:
+
+| Choice | What it does |
+| --- | --- |
+| **Automatic** (default) | Uses the best API for the selected model. The option's label names the API it resolves to. OpenAI GPT-6-family chat models (`gpt-6-luna`, `gpt-6.1-sol`, …) use the Responses API, because they reject function tools combined with a reasoning effort on Chat Completions, and so do OpenAI models that exist only on the Responses API (`*-codex`, `*-pro`) in every model form. Everything else, including every OpenAI-compatible server, uses Chat Completions. |
+| **Chat Completions** | Always calls `/v1/chat/completions`. |
+| **Responses API** | Always calls `/v1/responses`, for example on an OpenAI-compatible server that implements it (such as vLLM). |
+
+The choice is remembered **per model name**, like the thinking settings: switching the model restores that model's choice (or Automatic), and choosing Automatic again forgets the override. As with thinking, the value on screen belongs to the model that was stored when the form opened, so after switching models, save again to change the new model's choice.
+
+A forced choice that the backend cannot serve does not fail the turn:
+
+- **Chat Completions on a GPT-6 chat model:** the request is retried once with the reasoning effort set to `none`, which GPT-6 accepts alongside tools on Chat Completions. Answers work, but without reasoning.
+- **Responses API on a server without it** (`/v1/responses` returns 404, 405 or 501, or a 400 saying the endpoint is unsupported): the request is retried once on Chat Completions.
+
+Both retries log a warning naming the rejected setting, so switching back to Automatic removes the extra round trip.
 
 ## Tool Retrieval (RAG)
 
