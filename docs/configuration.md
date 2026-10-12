@@ -186,6 +186,8 @@ HGA records the token usage each provider reports for every chat, camera-analysi
 
 The window sensors carry a `by_model` attribute keyed by model and API (for example `gpt-5 (responses)`, `gpt-6-luna (chat_completions)`) with calls, tokens and cost, so you can compare Chat Completions and Responses API usage after switching a model's **OpenAI API** setting. Projections use the time actually tracked: after two days of use, the 7-day projection scales those two days, not seven.
 
+The sensors update after every call and every 5 minutes, so the 24-hour and 7-day sums fall as old calls leave the window. A call whose provider reports no token usage (for example a streamed reply from an OpenAI-compatible server that does not send stream usage) is still counted, as unpriced.
+
 Usage is kept for 7 days in Home Assistant storage (`.storage/home_generative_agent.usage_costs`), so it survives restarts. Embedding calls are not counted.
 
 **Prices.** Costs are estimates in USD:

@@ -55,6 +55,7 @@ async def async_setup_entry(
         async_add_entities(
             build_usage_cost_sensors(hass, data.usage_tracker, entry.entry_id)
         )
+        entry.async_on_unload(data.usage_tracker.async_start_refresh())
 
     cams = _discover_cameras(hass)
     if cams:

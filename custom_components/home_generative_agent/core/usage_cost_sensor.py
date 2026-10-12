@@ -124,19 +124,19 @@ class UsageCostSensor(SensorEntity):
         self._description = description
         self._tracker = tracker
         self._attr_unique_id = f"{description.key}::{entry_id}"
-        self._refresh()
+        self._refresh(self._tracker.summary())
 
-    def _refresh(self) -> None:
-        summary = self._tracker.summary()
+    def _refresh(self, summary: dict[str, Any]) -> None:
         self._attr_native_value = self._description.value_fn(summary)
         self._attr_extra_state_attributes = self._description.attrs_fn(summary)
 
     async def async_added_to_hass(self) -> None:
-        """Refresh on every recorded call."""
+        """Refresh on every recorded call and on the tracker's periodic tick."""
 
         @callback
-        def _on_updated() -> None:
-            self._refresh()
+        def _on_updated(summary: dict[str, Any] | None = None) -> None:
+            # The tracker computes one summary per update for all sensors.
+            self._refresh(self._tracker.summary() if summary is None else summary)
             self.async_write_ha_state()
 
         self.async_on_remove(

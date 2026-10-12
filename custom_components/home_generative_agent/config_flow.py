@@ -994,6 +994,7 @@ class HomeGenerativeAgentOptionsFlow(OptionsFlowWithReload):
             CONF_VLM_RESPONSE_LANGUAGE,
             CONF_VLM_PROMPT_EXTRA,
             CONF_VOICE_TOOL_ACK,
+            CONF_MODEL_PRICES,
         ):
             if not _get_str(final_options, k):
                 final_options.pop(k, None)
@@ -1113,8 +1114,9 @@ class HomeGenerativeAgentOptionsFlow(OptionsFlowWithReload):
         # The frontend omits an optional text field the user emptied, so an
         # always-rendered field that is absent was cleared; update() alone
         # would keep the stored value and the feature could not be turned off.
-        if CONF_VOICE_TOOL_ACK not in user_input:
-            options.pop(CONF_VOICE_TOOL_ACK, None)
+        for cleared_key in (CONF_VOICE_TOOL_ACK, CONF_MODEL_PRICES):
+            if cleared_key not in user_input:
+                options.pop(cleared_key, None)
         errors: dict[str, str] = {}
 
         # Field-specific edits with validation/normalization

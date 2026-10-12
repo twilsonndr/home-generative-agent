@@ -20,15 +20,18 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import threading
 import time
 from collections import deque
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, fields
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from langchain_core.callbacks import BaseCallbackHandler
 
@@ -40,7 +43,8 @@ from ..const import (  # noqa: TID252
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
+    from datetime import datetime
     from uuid import UUID
 
     from langchain_core.outputs import LLMResult
@@ -58,6 +62,9 @@ DAYS_PER_MONTH = 30.437
 TOKENS_PER_PRICE_UNIT = 1_000_000
 # Per-call records kept at most; at a call a minute this is about two weeks.
 MAX_RECORDS = 20_000
+# The window sensors only change on a new call; this re-summarizes them so the
+# 24-hour and 7-day sums also fall as old calls leave the windows.
+REFRESH_INTERVAL = timedelta(minutes=5)
 
 # Metadata keys set on each configured model's RunnableConfig.
 META_CATEGORY = "hga_category"
@@ -97,6 +104,11 @@ BUILTIN_PRICES: dict[str, ModelPrice] = {
 }
 
 FREE_PROVIDER_TYPES = frozenset({"ollama"})
+# Built-in prices are first-party list prices; an OpenAI-compatible server
+# (a proxy, reseller or local server) bills its own rates, so it is priced only
+# from the user's table.
+UNPRICED_BY_DEFAULT_PROVIDER_TYPES = frozenset({"openai_compatible"})
+OPENAI_PROVIDER_TYPES = frozenset({"openai", "openai_compatible"})
 
 _DATE_SUFFIX_RE = re.compile(r"(?:-\d{4}-\d{2}-\d{2}|-\d{8}|@\d{8})$")
 
@@ -139,20 +151,26 @@ def _parse_price(model: str, raw: Any) -> ModelPrice:
         raise ValueError(msg)
     input_price, output_price, cached_price = values
     for value in (input_price, output_price):
-        if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+        if not _valid_price(value):
             msg = f"price for {model!r} needs non-negative input and output numbers"
             raise ValueError(msg)
-    if cached_price is not None and (
-        not isinstance(cached_price, (int, float))
-        or isinstance(cached_price, bool)
-        or cached_price < 0
-    ):
+    if cached_price is not None and not _valid_price(cached_price):
         msg = f"cached_input for {model!r} must be a non-negative number"
         raise ValueError(msg)
     return ModelPrice(
         float(input_price),  # type: ignore[arg-type]
         float(output_price),  # type: ignore[arg-type]
         None if cached_price is None else float(cached_price),
+    )
+
+
+def _valid_price(value: Any) -> bool:
+    """Return True for a finite, non-negative number (JSON allows NaN/Infinity)."""
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value >= 0
     )
 
 
@@ -167,6 +185,8 @@ def price_for(
         return overrides[name]
     if provider_type in FREE_PROVIDER_TYPES:
         return ModelPrice(0.0, 0.0, 0.0)
+    if provider_type in UNPRICED_BY_DEFAULT_PROVIDER_TYPES:
+        return None
     return BUILTIN_PRICES.get(name)
 
 
@@ -201,6 +221,14 @@ class UsageRecord:
     cached_tokens: int
     output_tokens: int
     cost: float | None
+
+
+_RECORD_FIELDS = tuple(f.name for f in fields(UsageRecord))
+
+
+def _record_to_dict(rec: UsageRecord) -> dict[str, Any]:
+    """Shallow dict of a record (asdict deep-copies; all fields are scalars)."""
+    return {name: getattr(rec, name) for name in _RECORD_FIELDS}
 
 
 def _window_summary(
@@ -280,6 +308,7 @@ class UsageCostTracker:
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, STORAGE_KEY, private=True
         )
+        self._closed = False
         self.callback = UsageCostCallback(self)
 
     async def async_load(self) -> None:
@@ -298,18 +327,40 @@ class UsageCostTracker:
                 rec = UsageRecord(**raw)
             except TypeError:
                 continue
-            if rec.ts >= cutoff:
+            if isinstance(rec.ts, (int, float)) and rec.ts >= cutoff:
                 self._records.append(rec)
 
     def _data_to_save(self) -> dict[str, Any]:
         return {
             "started": self._started,
-            "records": [asdict(rec) for rec in self._records],
+            "records": [_record_to_dict(rec) for rec in self._records],
         }
 
     async def async_flush(self) -> None:
-        """Write pending records now (on unload)."""
+        """
+        Write pending records now and stop recording (on unload).
+
+        Calls still in flight when the entry reloads finish on this tracker;
+        once closed they are dropped instead of scheduling a delayed save that
+        would overwrite the next tracker's file with this tracker's records.
+        """
+        self._closed = True
         await self._store.async_save(self._data_to_save())
+
+    @callback
+    def async_start_refresh(self) -> Callable[[], None]:
+        """Re-summarize the sensors periodically; returns the unsubscribe."""
+
+        @callback
+        def _tick(_now: datetime) -> None:
+            self._async_notify()
+
+        return async_track_time_interval(self.hass, _tick, REFRESH_INTERVAL)
+
+    @callback
+    def _async_notify(self) -> None:
+        """Send one summary to every cost sensor."""
+        async_dispatcher_send(self.hass, SIGNAL_USAGE_COST_UPDATED, self.summary())
 
     def price_for(self, model: Any, provider_type: str | None) -> ModelPrice | None:
         """Return the price used for a model."""
@@ -318,12 +369,14 @@ class UsageCostTracker:
     @callback
     def async_record(self, record: UsageRecord) -> None:
         """Store one call; must run on the event loop."""
+        if self._closed:
+            return
         self._records.append(record)
         cutoff = time.time() - RETENTION_S
         while self._records and self._records[0].ts < cutoff:
             self._records.popleft()
         self._store.async_delay_save(self._data_to_save, SAVE_DELAY_S)
-        async_dispatcher_send(self.hass, SIGNAL_USAGE_COST_UPDATED)
+        self._async_notify()
 
     def record_threadsafe(self, record: UsageRecord) -> None:
         """Store one call from any thread (sync model calls run in executors)."""
@@ -336,9 +389,13 @@ class UsageCostTracker:
         """Return the last call plus 24-hour and 7-day windows."""
         now = time.time() if now is None else now
         tracked_s = max(0.0, now - self._started)
+        if self._records and len(self._records) == self._records.maxlen:
+            # The record cap dropped calls inside the windows: project only
+            # over the time the kept records cover.
+            tracked_s = min(tracked_s, max(0.0, now - self._records[0].ts))
         last = self._records[-1] if self._records else None
         return {
-            "last_call": None if last is None else asdict(last),
+            "last_call": None if last is None else _record_to_dict(last),
             "day": _window_summary(
                 self._records, since=now - DAY_S, span_s=min(DAY_S, tracked_s)
             ),
@@ -349,12 +406,20 @@ class UsageCostTracker:
         }
 
 
-def _api_from_response(response_metadata: Mapping[str, Any]) -> str | None:
-    """Tell the OpenAI API apart by the response id it returned."""
+def _api_from_response(
+    response_metadata: Mapping[str, Any], provider_type: str | None
+) -> str | None:
+    """
+    Tell the OpenAI API apart by the response id it returned.
+
+    Responses API replies always carry their ``resp_`` id, streamed or not.
+    Streamed Chat Completions replies carry no id in the response metadata, so
+    any other reply from an OpenAI provider is a Chat Completions call.
+    """
     response_id = str(response_metadata.get("id") or "")
     if response_id.startswith("resp_"):
         return OPENAI_API_RESPONSES
-    if response_id.startswith("chatcmpl-"):
+    if response_id.startswith("chatcmpl-") or provider_type in OPENAI_PROVIDER_TYPES:
         return OPENAI_API_CHAT_COMPLETIONS
     return None
 
@@ -404,33 +469,43 @@ class UsageCostCallback(BaseCallbackHandler):
             run = self._runs.pop(run_id, None)
         if run is None:
             return
-        for generations in response.generations:
-            for generation in generations:
-                message = getattr(generation, "message", None)
-                usage = getattr(message, "usage_metadata", None)
-                if not usage:
-                    continue
-                meta = getattr(message, "response_metadata", None) or {}
-                model = meta.get("model_name") or meta.get("model") or run["model"]
-                details = usage.get("input_token_details") or {}
-                input_tokens = _int(usage.get("input_tokens"))
-                cached = _int(details.get("cache_read"))
-                output_tokens = _int(usage.get("output_tokens"))
-                price = self._tracker.price_for(model, run["provider"])
-                self._tracker.record_threadsafe(
-                    UsageRecord(
-                        ts=time.time(),
-                        category=run["category"],
-                        provider=run["provider"],
-                        model=normalize_model_name(model) or "unknown",
-                        api=_api_from_response(meta),
-                        input_tokens=input_tokens,
-                        cached_tokens=cached,
-                        output_tokens=output_tokens,
-                        cost=estimate_cost(price, input_tokens, cached, output_tokens),
-                    )
-                )
-                return
+        messages = [
+            message
+            for generations in response.generations
+            for generation in generations
+            if (message := getattr(generation, "message", None)) is not None
+        ]
+        # Only the first reply with usage counts (n>1 replies share one bill).
+        message = next(
+            (m for m in messages if getattr(m, "usage_metadata", None)),
+            messages[0] if messages else None,
+        )
+        usage = getattr(message, "usage_metadata", None) or {}
+        meta = getattr(message, "response_metadata", None) or {}
+        model = meta.get("model_name") or meta.get("model") or run["model"]
+        details = usage.get("input_token_details") or {}
+        input_tokens = _int(usage.get("input_tokens"))
+        cached = _int(details.get("cache_read"))
+        output_tokens = _int(usage.get("output_tokens"))
+        price = self._tracker.price_for(model, run["provider"])
+        if not usage and price is not None and (price.input or price.output):
+            # No usage reported (e.g. a streamed reply from a server that does
+            # not send stream usage): count the call, but as unpriced rather
+            # than as free.
+            price = None
+        self._tracker.record_threadsafe(
+            UsageRecord(
+                ts=time.time(),
+                category=run["category"],
+                provider=run["provider"],
+                model=normalize_model_name(model) or "unknown",
+                api=_api_from_response(meta, run["provider"]),
+                input_tokens=input_tokens,
+                cached_tokens=cached,
+                output_tokens=output_tokens,
+                cost=estimate_cost(price, input_tokens, cached, output_tokens),
+            )
+        )
 
     def on_llm_error(self, error: BaseException, *, run_id: UUID, **_: Any) -> None:  # noqa: ARG002
         """Forget a failed run."""

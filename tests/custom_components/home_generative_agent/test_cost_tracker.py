@@ -66,6 +66,9 @@ def test_price_lookup_order() -> None:
     assert price_for("gpt-6-luna", "openai") is None
     # A newer point release is not silently priced as its base model.
     assert price_for("gpt-5.4", "openai") is None
+    # An OpenAI-compatible server bills its own rates, even for an OpenAI name.
+    assert price_for("openai/gpt-5", "openai_compatible") is None
+    assert price_for("gpt-5", "openai_compatible", overrides) == ModelPrice(9.0, 9.0)
 
 
 def test_estimate_cost_with_cached_input() -> None:
@@ -106,6 +109,8 @@ def test_parse_model_prices_valid(text: str | None) -> None:
         '{"gpt-6-luna": {"input": "cheap", "output": 0.5}}',
         '{"gpt-6-luna": [true, 0.5]}',
         '{"gpt-6-luna": {"input": 0.1, "output": 0.5, "cached_input": -1}}',
+        '{"gpt-6-luna": [NaN, 0.5]}',
+        '{"gpt-6-luna": [0.1, Infinity]}',
     ],
 )
 def test_parse_model_prices_invalid(text: str) -> None:
@@ -342,3 +347,54 @@ async def test_sensors_expose_costs_and_breakdown(hass: HomeAssistant) -> None:
     assert attrs["by_model"]["gpt-5 (responses)"]["input_tokens"] == 500
     assert sensors["llm_cost_24h"].native_unit_of_measurement == "USD"
     assert sensors["llm_cost_24h"].unique_id == "llm_cost_24h::entry1"
+
+
+@pytest.mark.asyncio
+async def test_streamed_chat_completions_reply_is_labeled(hass: HomeAssistant) -> None:
+    """A streamed Chat Completions reply has no id but is still labeled."""
+    tracker = UsageCostTracker(hass)
+    reply = AIMessage(
+        content="hi",
+        usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+        response_metadata={"model_name": "gpt-5-2025-08-07", "finish_reason": "stop"},
+    )
+    await _model_returning(reply, tracker).ainvoke("hello")
+    await hass.async_block_till_done()
+    assert tracker.summary()["last_call"]["api"] == "chat_completions"
+
+
+@pytest.mark.asyncio
+async def test_call_without_usage_counts_as_unpriced(hass: HomeAssistant) -> None:
+    """A reply with no usage (no stream usage) is counted, not dropped or free."""
+    tracker = UsageCostTracker(hass)
+    reply = AIMessage(content="hi", response_metadata={"model_name": "gpt-5"})
+    await _model_returning(reply, tracker).ainvoke("hello")
+    await hass.async_block_till_done()
+    day = tracker.summary()["day"]
+    assert day["calls"] == 1
+    assert day["unpriced_calls"] == 1
+
+
+@pytest.mark.asyncio
+async def test_closed_tracker_drops_late_calls(hass: HomeAssistant) -> None:
+    """After unload, a call still in flight does not reach the old tracker."""
+    tracker = UsageCostTracker(hass)
+    await tracker.async_flush()
+    tracker.async_record(_record(time.time(), 1.0))
+    assert len(tracker._records) == 0
+
+
+@pytest.mark.asyncio
+async def test_record_cap_limits_projection_span(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the cap drops calls, projections use only the time still covered."""
+    monkeypatch.setattr(ct, "MAX_RECORDS", 2)
+    tracker = UsageCostTracker(hass)
+    now = time.time()
+    tracker._started = now - 10 * ct.DAY_S
+    for age in (3, 2, 1):
+        tracker.async_record(_record(now - age * ct.DAY_S, 1.0))
+    week = tracker.summary(now)["week"]
+    assert week["covered_days"] == pytest.approx(2.0)
+    assert week["projected_monthly_usd"] == pytest.approx(2.0 / 2 * ct.DAYS_PER_MONTH)
