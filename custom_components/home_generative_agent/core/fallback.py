@@ -126,9 +126,13 @@ def _responses_api_unsupported(err: Exception) -> bool:
     if status in _NO_ROUTE_STATUSES:
         return True
     message = str(getattr(err, "message", "") or err).lower()
+    # Backends phrase this both ways ("Unsupported endpoint: /v1/responses",
+    # "... is not supported in the Responses API"). A param 400 such as
+    # "Unsupported parameter: 'temperature'" never names the endpoint, so it
+    # is not caught here.
     return (
         status == HTTP_STATUS_BAD_REQUEST
-        and "not supported" in message
+        and ("not supported" in message or "unsupported" in message)
         and ("/responses" in message or "responses api" in message)
     )
 
