@@ -49,7 +49,7 @@ from homeassistant.helpers.target import (
 )
 from homeassistant.util import dt as dt_util
 from homeassistant.util.ssl import SSL_ALPN_HTTP11, client_context
-from langchain_core.runnables import ConfigurableField
+from langchain_core.runnables import ConfigurableField, RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -97,6 +97,7 @@ from .const import (
     CONF_GEMINI_EMBEDDING_MODEL,
     CONF_GEMINI_SUMMARIZATION_MODEL,
     CONF_GEMINI_VLM,
+    CONF_MODEL_PRICES,
     CONF_NOTIFY_SERVICE,
     CONF_OLLAMA_CHAT_CONTEXT_SIZE,
     CONF_OLLAMA_CHAT_KEEPALIVE,
@@ -239,6 +240,13 @@ from .const import (
     VLM_TOP_P,
 )
 from .core.anthropic_client import SharedClientChatAnthropic, async_prime_async_client
+from .core.cost_tracker import META_CATEGORY as USAGE_META_CATEGORY
+from .core.cost_tracker import META_PROVIDER as USAGE_META_PROVIDER
+from .core.cost_tracker import (
+    UsageCostTracker,
+    async_remove_usage_store,
+    parse_model_prices,
+)
 from .core.database_guard import (
     async_clear_database_issue,
     async_sync_database_issue,
@@ -2721,6 +2729,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         pool = None
         store = NullStore()
 
+    # ----- Token usage / cost estimates (cost sensors) -----
+    try:
+        price_overrides = parse_model_prices(options.get(CONF_MODEL_PRICES))
+    except ValueError as err:
+        LOGGER.warning(
+            "Ignoring invalid model prices in the options (%s); cost estimates "
+            "use the built-in prices only.",
+            err,
+        )
+        price_overrides = {}
+    usage_tracker = UsageCostTracker(hass, price_overrides)
+    await usage_tracker.async_load()
+    entry.async_on_unload(usage_tracker.async_flush)
+
+    def _usage_config(category: str, provider_type: str) -> RunnableConfig:
+        """RunnableConfig entries that record each call's usage and cost."""
+        return {
+            "callbacks": [usage_tracker.callback],
+            "metadata": {
+                USAGE_META_CATEGORY: category,
+                USAGE_META_PROVIDER: provider_type,
+            },
+        }
+
     # ----- Choose concrete models for roles from constants -----
 
     ollama_reasoning: bool = options.get(
@@ -2831,13 +2863,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         )
         chat_model = (openai_provider or NullChat()).with_config(
             config={
+                **_usage_config("chat", "openai"),
                 "configurable": {
                     "model_name": openai_chat_model,
                     **_openai_api_config("chat", "openai", openai_chat_model),
                     "temperature": chat_temp,
                     "top_p": CHAT_MODEL_TOP_P,
                     **_chat_thinking_for_model("openai", openai_chat_model),
-                }
+                },
             }
         )
     elif chat_provider == "openai_compatible":
@@ -2847,6 +2880,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         )
         chat_model = (openai_compatible_provider or NullChat()).with_config(
             config={
+                **_usage_config("chat", "openai_compatible"),
                 "configurable": {
                     "model_name": openai_compatible_chat_model,
                     **_openai_api_config(
@@ -2857,7 +2891,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                     **_chat_thinking_for_model(
                         "openai_compatible", openai_compatible_chat_model
                     ),
-                }
+                },
             }
         )
     elif chat_provider == "gemini":
@@ -2866,6 +2900,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         )
         chat_model = (gemini_provider or NullChat()).with_config(
             config={
+                **_usage_config("chat", "gemini"),
                 "configurable": {
                     "model": gemini_chat_model,
                     **gemini_sampling_configurable(
@@ -2875,7 +2910,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                         recommended_temperature=RECOMMENDED_CHAT_MODEL_TEMPERATURE,
                     ),
                     **_chat_thinking_for_model("gemini", gemini_chat_model),
-                }
+                },
             }
         )
     elif chat_provider == "anthropic":
@@ -2884,11 +2919,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         )
         chat_model = (anthropic_provider or NullChat()).with_config(
             config={
+                **_usage_config("chat", "anthropic"),
                 "configurable": {
                     "model": anthropic_chat_model,
                     "temperature": chat_temp,
                     **_chat_thinking_for_model("anthropic", anthropic_chat_model),
-                }
+                },
             }
         )
     else:
@@ -2899,6 +2935,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         ollama_chat_model_options = {**ollama_chat_model_options, **rf_chat}
         chat_model = (chat_ollama_provider or NullChat()).with_config(
             config={
+                **_usage_config("chat", "ollama"),
                 "configurable": {
                     "model": ollama_chat_model,
                     "temperature": chat_temp,
@@ -2908,7 +2945,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                     "repeat_penalty": CHAT_MODEL_REPEAT_PENALTY,
                     "keep_alive": ollama_chat_keep_alive,
                     **rf_chat,
-                }
+                },
             }
         )
 
@@ -2919,12 +2956,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         openai_vlm = options.get(CONF_OPENAI_VLM, RECOMMENDED_OPENAI_VLM)
         vision_model = (openai_provider or NullChat()).with_config(
             config={
+                **_usage_config("vlm", "openai"),
                 "configurable": {
                     "model_name": openai_vlm,
                     **_openai_api_config("vlm", "openai", openai_vlm),
                     "temperature": vlm_temp,
                     "top_p": VLM_TOP_P,
-                }
+                },
             }
         )
     elif vlm_provider == "openai_compatible":
@@ -2933,18 +2971,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         )
         vision_model = (openai_compatible_provider or NullChat()).with_config(
             config={
+                **_usage_config("vlm", "openai_compatible"),
                 "configurable": {
                     "model_name": compat_vlm,
                     **_openai_api_config("vlm", "openai_compatible", compat_vlm),
                     "temperature": vlm_temp,
                     "top_p": VLM_TOP_P,
-                }
+                },
             }
         )
     elif vlm_provider == "gemini":
         gemini_vlm = options.get(CONF_GEMINI_VLM, RECOMMENDED_GEMINI_VLM)
         vision_model = (gemini_provider or NullChat()).with_config(
             config={
+                **_usage_config("vlm", "gemini"),
                 "configurable": {
                     "model": gemini_vlm,
                     **gemini_sampling_configurable(
@@ -2953,16 +2993,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                         top_p=VLM_TOP_P,
                         recommended_temperature=RECOMMENDED_VLM_TEMPERATURE,
                     ),
-                }
+                },
             }
         )
     elif vlm_provider == "anthropic":
         vision_model = (anthropic_provider or NullChat()).with_config(
             config={
+                **_usage_config("vlm", "anthropic"),
                 "configurable": {
                     "model": options.get(CONF_ANTHROPIC_VLM, RECOMMENDED_ANTHROPIC_VLM),
                     "temperature": vlm_temp,
-                }
+                },
             }
         )
     else:
@@ -2970,6 +3011,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         rf_vlm = reasoning_field(model=ollama_vlm, enabled=ollama_reasoning)
         vision_model = (vlm_ollama_provider or NullChat()).with_config(
             config={
+                **_usage_config("vlm", "ollama"),
                 "configurable": {
                     "model": ollama_vlm,
                     "temperature": vlm_temp,
@@ -2984,7 +3026,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                         CONF_OLLAMA_VLM_KEEPALIVE, RECOMMENDED_OLLAMA_VLM_KEEPALIVE
                     ),
                     **rf_vlm,
-                }
+                },
             }
         )
 
@@ -3003,12 +3045,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         )
         summarization_model = (openai_provider or NullChat()).with_config(
             config={
+                **_usage_config("summarization", "openai"),
                 "configurable": {
                     "model_name": openai_sum_model,
                     **_openai_api_config("summarization", "openai", openai_sum_model),
                     "temperature": sum_temp,
                     "top_p": SUMMARIZATION_MODEL_TOP_P,
-                }
+                },
             }
         )
     elif sum_provider == "openai_compatible":
@@ -3018,6 +3061,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         )
         summarization_model = (openai_compatible_provider or NullChat()).with_config(
             config={
+                **_usage_config("summarization", "openai_compatible"),
                 "configurable": {
                     "model_name": compat_sum_model,
                     **_openai_api_config(
@@ -3025,7 +3069,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                     ),
                     "temperature": sum_temp,
                     "top_p": SUMMARIZATION_MODEL_TOP_P,
-                }
+                },
             }
         )
     elif sum_provider == "gemini":
@@ -3035,6 +3079,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         )
         summarization_model = (gemini_provider or NullChat()).with_config(
             config={
+                **_usage_config("summarization", "gemini"),
                 "configurable": {
                     "model": gemini_sum_model,
                     **gemini_sampling_configurable(
@@ -3045,19 +3090,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                             RECOMMENDED_SUMMARIZATION_MODEL_TEMPERATURE
                         ),
                     ),
-                }
+                },
             }
         )
     elif sum_provider == "anthropic":
         summarization_model = (anthropic_provider or NullChat()).with_config(
             config={
+                **_usage_config("summarization", "anthropic"),
                 "configurable": {
                     "model": options.get(
                         CONF_ANTHROPIC_SUMMARIZATION_MODEL,
                         RECOMMENDED_ANTHROPIC_SUMMARIZATION_MODEL,
                     ),
                     "temperature": sum_temp,
-                }
+                },
             }
         )
     else:
@@ -3070,6 +3116,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         )
         summarization_model = (summarization_ollama_provider or NullChat()).with_config(
             config={
+                **_usage_config("summarization", "ollama"),
                 "configurable": {
                     "model": ollama_summarization_model,
                     "temperature": sum_temp,
@@ -3086,7 +3133,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                         RECOMMENDED_OLLAMA_SUMMARIZATION_KEEPALIVE,
                     ),
                     **rf_summarization,
-                }
+                },
             }
         )
 
@@ -3145,7 +3192,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                 category, provider.provider_type, model_name, default_to_flat=False
             )
         )
-        return model.with_config(config={"configurable": config})
+        return model.with_config(
+            config={
+                "configurable": config,
+                **_usage_config(category, provider.provider_type),
+            }
+        )
 
     def _configured_ollama_model(
         model: Any,
@@ -3212,7 +3264,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                     ),
                 }
             )
-        return model.with_config(config={"configurable": config})
+        return model.with_config(
+            config={"configurable": config, **_usage_config(category, "ollama")}
+        )
 
     def _configured_model_for_provider(
         provider: ModelProviderConfig, category: str
@@ -3245,7 +3299,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                         "anthropic", model_name, default_to_flat=False
                     )
                 )
-            return model.with_config(config={"configurable": anthropic_config})
+            return model.with_config(
+                config={
+                    "configurable": anthropic_config,
+                    **_usage_config(category, "anthropic"),
+                }
+            )
         if provider.provider_type == "ollama":
             return _configured_ollama_model(
                 model, provider, category, model_name, temperature
@@ -3587,6 +3646,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         auth_inventory=auth_inventory,
         network_inventory=network_inventory,
         openai_http_client=openai_http_client,
+        usage_tracker=usage_tracker,
     )
 
     # Registered once per Home Assistant run: aiohttp routes cannot be removed,
@@ -3676,6 +3736,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
     stop_listener_fired = False
 
     async def _stop_background_tasks() -> None:
+        # Write usage records now and stop recording. Store would also write a
+        # pending delayed save at final write, but flushing here does not rely
+        # on that, and calls still in flight are dropped, not half-saved.
+        await usage_tracker.async_flush()
         await sentinel.stop()
         await discovery_engine.stop()
         if baseline_updater is not None:
@@ -4473,14 +4537,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool
 
 async def async_remove_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> None:
     """
-    Clear every per-entry repair issue when the entry is deleted for good.
+    Clear per-entry state when the entry is deleted for good.
 
-    Every one is keyed by entry_id, so a remove-and-re-add (new entry_id)
-    would otherwise leave the old ones standing until a restart.
+    Every repair issue is keyed by entry_id, so a remove-and-re-add (new
+    entry_id) would otherwise leave the old ones standing until a restart.
+    The usage-cost store has one fixed key, so it is deleted too; Home
+    Assistant runs this after the entry's unload flushed it.
     """
     async_clear_database_issue(hass, entry.entry_id)
     async_clear_pin_pipeline_issue(hass, entry.entry_id)
     async_clear_unknown_person_issue(hass, entry.entry_id)
+    await async_remove_usage_store(hass)
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:  # noqa: C901, PLR0912, PLR0915

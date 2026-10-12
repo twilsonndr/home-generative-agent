@@ -362,6 +362,28 @@ async def test_shutdown_of_a_loaded_entry_stops_engines_and_closes_the_client(
 
 
 @pytest.mark.asyncio
+async def test_shutdown_flushes_the_usage_tracker(
+    hass: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """STOP writes pending usage records and closes the tracker."""
+    entry, *_ = await _setup_with_deferred_sentinel_start(hass, monkeypatch)
+    tracker = entry.runtime_data.usage_tracker
+    assert tracker is not None
+    saved: list[Any] = []
+
+    async def _save(data: Any) -> None:
+        saved.append(data)
+
+    monkeypatch.setattr(tracker._store, "async_save", _save)
+
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
+    await hass.async_block_till_done()
+
+    assert tracker._closed, "shutdown did not close the usage tracker"
+    assert len(saved) == 1, "shutdown did not write the usage records"
+
+
+@pytest.mark.asyncio
 async def test_stop_listener_is_removed_on_unload(
     hass: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -25,6 +25,7 @@ from custom_components.home_generative_agent.config_flow import (
 from custom_components.home_generative_agent.const import (
     CONF_CRITICAL_ACTION_PIN,
     CONF_CRITICAL_ACTION_PIN_ENABLED,
+    CONF_MODEL_PRICES,
     CONF_SCHEMA_FIRST_YAML,
     CONF_STT_HALLUCINATION_EXACT_PATTERNS,
     CONF_STT_HALLUCINATION_PATTERNS,
@@ -299,6 +300,14 @@ async def test_clearing_voice_acknowledgement_turns_it_off(hass: Any) -> None:
     assert CONF_VOICE_TOOL_ACK not in await _submit_options(hass, stored, {})
     kept = await _submit_options(hass, stored, {CONF_VOICE_TOOL_ACK: "One moment."})
     assert kept[CONF_VOICE_TOOL_ACK] == "One moment."
+
+
+@pytest.mark.asyncio
+async def test_clearing_model_prices_removes_them(hass: Any) -> None:
+    """An emptied price table falls back to the built-in prices."""
+    stored = {CONF_MODEL_PRICES: '{"gpt-6-luna": [0.1, 0.5]}'}
+
+    assert CONF_MODEL_PRICES not in await _submit_options(hass, stored, {})
 
 
 @pytest.mark.parametrize(

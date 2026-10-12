@@ -172,6 +172,47 @@ A forced choice that the backend cannot serve does not fail the turn:
 
 Both retries log a warning naming the rejected setting, so switching back to Automatic removes the extra round trip.
 
+### Estimated model costs
+
+HGA records the token usage each provider reports for every chat, camera-analysis and summary call (primary models and fallbacks) and turns it into five sensors:
+
+| Sensor | Value |
+| --- | --- |
+| **LLM cost (last call)** | Estimated cost of the most recent call. Attributes: model, API, provider, feature, token counts, and the 7-day average cost per call. |
+| **LLM cost (last 24 hours)** | Sum of the last 24 hours. |
+| **LLM cost (last 7 days)** | Sum of the last 7 days. |
+| **LLM cost projected per month (from last 24 hours)** | The last 24 hours scaled to an average month (30.44 days). |
+| **LLM cost projected per month (from last 7 days)** | The last 7 days scaled to an average month. |
+
+The window sensors carry a `by_model` attribute keyed by model, API and provider type (for example `gpt-5 (responses, openai)`, `gpt-6-luna (chat_completions, openai_compatible)`) with calls, tokens and cost, so you can compare Chat Completions and Responses API usage after switching a model's **OpenAI API** setting, and a model served by two providers shows up once per provider. Projections use the time actually tracked: after two days of use, the 7-day projection scales those two days, not seven. They scale at least one hour, so a projection made in the first hour of tracking understates; `covered_days` shows the span used.
+
+The sensors update after every call and every 5 minutes, so the 24-hour and 7-day sums fall as old calls leave the window. A call whose provider reports no token usage (for example a streamed reply from an OpenAI-compatible server that does not send stream usage) is still counted, as unpriced.
+
+Usage is kept for 7 days in Home Assistant storage (`.storage/home_generative_agent.usage_costs`), so it survives restarts. Embedding calls are not counted.
+
+**Prices.** Costs are estimates in USD:
+
+- Built-in prices cover only models whose published prices agreed across sources when they were checked (the `prices_checked` attribute shows the date): `gpt-6-astra`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5` and `gemini-3.5-flash-lite`.
+- Local **Ollama** models are free.
+- Any other model, including GPT-6 Luna and Sol (sources disagreed), and every OpenAI-compatible server, is **unpriced** until you add a price: its calls are counted and listed in `unpriced_calls` / `unpriced_models`, but add nothing to the cost.
+
+Add or correct prices in the integration's **Options** (gear icon) under **Model prices for cost estimates**, as a JSON object in USD per 1 million tokens:
+
+```json
+{
+  "gpt-6-luna": [0.1, 0.5, 0.01],
+  "gpt-6.1-sol": {"input": 2.0, "output": 10.0, "cached_input": 0.2},
+  "my-llama-model": [0, 0],
+  "openai_compatible": {
+    "gpt-5": [0.5, 2.0]
+  }
+}
+```
+
+A provider type as the key (`openai`, `openai_compatible`, `ollama`, `gemini` or `anthropic`) holding its own model list prices those models for that provider only, ahead of a plain entry for the same name. Use it when two providers serve a model under the same name, for example OpenAI and an OpenAI-compatible proxy both offering `gpt-5`: the example above prices the proxy's `gpt-5` without touching OpenAI's built-in price. Plain entries apply to every provider except local Ollama, whose models stay free unless priced under `ollama`.
+
+Each entry is `[input, output]`, `[input, output, cached_input]`, or an object with those keys. Cached input tokens (prompt-cache reads) bill at `cached_input`, or at `input` when it is not given. Model names match case-insensitively, and dated snapshots (`gpt-5-2025-08-07`, `claude-haiku-4-5-20251001`) use their base model's price. Each call is stored as its time, feature, provider type, model, OpenAI API and token counts (prompts and replies are never stored), for seven days in Home Assistant's `.storage` folder. Costs are worked out from the current prices, so a price you add or correct also applies to the calls already in the 24-hour and 7-day windows. Calls older than seven days are removed within five minutes, even when no new calls arrive. Check your provider's pricing page, as prices change. Cache writes, batch discounts and long-context surcharges are not modeled.
+
 ## Tool Retrieval (RAG)
 
 > **Thanks to [1Jamie](https://github.com/1Jamie) for this feature!**

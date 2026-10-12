@@ -1,4 +1,4 @@
-"""Set up one recognized-people sensor per camera and the sentinel health sensor."""
+"""Set up the recognized-people, Sentinel health, tool index and cost sensors."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from .core.lifecycle import defer_start_until_hass_started
 from .core.recognized_sensor import RecognizedPeopleSensor
 from .core.sentinel_health_sensor import SentinelHealthSensor
 from .core.tool_index_sensor import ToolIndexSensor
+from .core.usage_cost_sensor import build_usage_cost_sensors
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -31,7 +32,7 @@ async def async_setup_entry(
     Set up sensors for this config entry.
 
     Registers the Sentinel health sensor, the tool index diagnostic sensor,
-    and one recognized-people sensor per camera.
+    the estimated-cost sensors, and one recognized-people sensor per camera.
     If no cameras exist yet, waits for HA startup before registering them.
     """
     data = entry.runtime_data
@@ -50,6 +51,11 @@ async def async_setup_entry(
             ToolIndexSensor(hass, entry.entry_id),
         ]
     )
+    if data.usage_tracker is not None:
+        async_add_entities(
+            build_usage_cost_sensors(hass, data.usage_tracker, entry.entry_id)
+        )
+        entry.async_on_unload(data.usage_tracker.async_start_refresh())
 
     cams = _discover_cameras(hass)
     if cams:
