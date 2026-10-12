@@ -286,6 +286,7 @@ from .core.utils import (
     ollama_url_for_category,
     openai_compatible_healthy,
     openai_healthy,
+    openai_uses_responses_api,
     reasoning_field,
     redact_url,
     thinking_configurable,
@@ -2232,6 +2233,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
     openai_provider: RunnableSerializable[LanguageModelInput, BaseMessage] | None = None
     if openai_ok:
         try:
+            # Responses API, not Chat Completions: GPT-6-family models (e.g.
+            # gpt-6-luna, gpt-6.1-sol) reject function tools combined with
+            # reasoning_effort on /v1/chat/completions, and the agent always
+            # binds tools. langchain-openai maps reasoning_effort to
+            # reasoning.effort and max_tokens to max_output_tokens here.
+            # OpenAI-compatible servers below stay on Chat Completions since
+            # most do not implement /v1/responses.
             openai_provider = ChatOpenAI(
                 api_key=openai_secret,
                 timeout=120,
@@ -2241,7 +2249,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                 stream_usage=True,
                 # langchain-openai 1.6 routes some model names (gpt-6 with
                 # tools, *codex*, *-pro) to the Responses API on its own; this
-                # integration is built and tested on Chat Completions.
+                # integration is built and tested on Chat Completions, so the
+                # default stays off. GPT-6-family models are the exception:
+                # they reject function tools combined with reasoning_effort on
+                # /v1/chat/completions, so openai_uses_responses_api() turns the
+                # Responses API on per model through the configurable field.
                 use_responses_api=False,
             ).configurable_fields(
                 model_name=ConfigurableField(id="model_name"),
@@ -2249,6 +2261,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                 top_p=ConfigurableField(id="top_p"),
                 max_tokens=ConfigurableField(id="max_tokens"),
                 reasoning_effort=ConfigurableField(id="reasoning_effort"),
+                use_responses_api=ConfigurableField(id="use_responses_api"),
             )
         except Exception:
             LOGGER.exception("OpenAI provider init failed; continuing without it.")
@@ -2780,6 +2793,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
             config={
                 "configurable": {
                     "model_name": openai_chat_model,
+                    "use_responses_api": openai_uses_responses_api(openai_chat_model),
                     "temperature": chat_temp,
                     "top_p": CHAT_MODEL_TOP_P,
                     **_chat_thinking_for_model("openai", openai_chat_model),
@@ -3073,6 +3087,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                     provider.provider_type, model_name, default_to_flat=False
                 )
             )
+            if provider.provider_type == "openai":
+                config["use_responses_api"] = openai_uses_responses_api(model_name)
         return model.with_config(config={"configurable": config})
 
     def _configured_ollama_model(

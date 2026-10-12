@@ -43,9 +43,16 @@ from ..const import (  # noqa: TID252
     CONF_OPENAI_COMPATIBLE_ENDPOINT_BASE_URL,
     SUBENTRY_TYPE_MODEL_PROVIDER,
 )
+from ..core.openai_endpoint import (  # noqa: TID252
+    OpenAIConnectionError,
+    resolve_openai_connection,
+)
 from ..core.utils import (  # noqa: TID252
     CannotConnectError,
     InvalidAuthError,
+    filter_openai_models,
+    list_openai_models,
+    merge_model_options,
     normalize_openai_compatible_base_url,
     validate_openai_compatible_url,
     validate_openai_key,
@@ -294,3 +301,48 @@ def openai_key_schema(
         )
     ] = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
     return vol.Schema(schema_dict)
+
+
+async def async_model_options(  # noqa: PLR0913
+    flow: ConfigSubentryFlow,
+    provider_type: str,
+    settings: Mapping[str, Any],
+    *,
+    provider_id_key: str,
+    category: str,
+    builtin: list[str],
+    cache: dict[tuple[str | None, str | None], list[str]] | None = None,
+) -> list[SelectOptionDict]:
+    """
+    Return model picker options: the built-in list, then what the backend lists.
+
+    The OpenAI listing is narrowed to models that serve ``category`` ("stt" or
+    "tts"); a local server's listing is shown as-is since its ids are free-form.
+    Any listing failure leaves just the built-in list. Pass the flow's
+    ``cache`` so a redisplayed form (e.g. after a validation error) does not
+    repeat the lookup.
+    """
+    try:
+        connection = resolve_openai_connection(
+            get_entry_from_flow(flow),
+            provider_type,
+            {"settings": dict(settings)},
+            provider_id_key=provider_id_key,
+        )
+    except OpenAIConnectionError:
+        listed: list[str] = []
+    else:
+        api_key = None if connection.keyless else connection.api_key
+        cache_key = (api_key, connection.base_url)
+        cached = cache.get(cache_key) if cache is not None else None
+        if cached is None:
+            cached = await list_openai_models(flow.hass, api_key, connection.base_url)
+            if cache is not None:
+                cache[cache_key] = cached
+        listed = cached
+        if provider_type == "openai":
+            listed = filter_openai_models(listed, category)
+    return [
+        SelectOptionDict(label=model, value=model)
+        for model in merge_model_options(builtin, listed)
+    ]
