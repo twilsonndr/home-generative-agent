@@ -33,6 +33,10 @@ their own. See [RELEASING.md](RELEASING.md).
 
 - Sentinel pushes for a low-battery rule approved from discovery now carry a readable subtitle, "Low battery" (Czech: "Slabá baterie"), in place of the rule's internal id ("V1 subject sensor predicate low battery night any"). The `low_battery_sensors` template had no curated label, so the subtitle, the batch summary, the snooze confirmation, and the explanation text used as the push body when the model call fails fell back to the slugified rule id ([#696](https://github.com/goruck/home-generative-agent/pull/696), @hruba202).
 
+### Security
+
+- **Dependency updates for high-severity advisories.** `transformers` is no longer installed: it was pinned at 4.57.1, which has several high-severity advisories (remote code execution when loading models or custom generation code, a `save_pretrained` path traversal, and unsafe checkpoint deserialization: GHSA-29pf-2h5f-8g72, GHSA-fgcw-684q-jj6r, GHSA-xrqw-3rrv-vx5w, GHSA-x9r9-c232-4q39, CVE-2025-14929, CVE-2025-14930), and nothing in the integration uses it any more (token counting uses `tiktoken`). Removing it also makes installs considerably smaller. `langgraph` goes from 1.1.2 to 1.2.14, which brings `langgraph-sdk` 0.4.6 and fixes GHSA-fvww-7h3r-vfhp (high); `langchain` (1.2.12 to 1.4.4, which also fixes the moderate GHSA-gr75-jv2w-4656), `langgraph-prebuilt` (1.0.8 to 1.1.0) and the `langchain-core` floor (1.6.9) move with it, as the new `langgraph` requires. Home Assistant does not uninstall packages, so an existing install keeps its old copy of `transformers` on disk, but nothing loads it.
+
 ## [3.43.4] - 2026-10-10
 
 ### Fixed
