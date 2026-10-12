@@ -2,6 +2,48 @@
 
 ## Agent
 
+### A confirmed critical action that fails can be re-run without a new PIN
+
+**What:** When a PIN-confirmed action fails (`_execute_pending_action` in `agent/tools.py`: a raised `HomeAssistantError`, or since #735 a `ToolResult` with `error=True`), the pending action stays queued for its 10-minute TTL so the user can retry. A correct PIN never increments `attempts`, and the PIN is already in the conversation, so the model can call `confirm_sensitive_action` again on its own, in the same turn, bounded only by the graph recursion limit. Each call actuates the device again. A tool that half-acted before reporting failure (a cover toggle, an alarm arm that timed out) can act twice.
+
+**Why:** Found by the second Claude adversarial pass in the #735 hotfix review (2026-10-08). The raised-error path has always behaved this way; #735 only made error-flag failures behave the same, as the review intended. Left out of the hotfix because a retry policy for critical actions is a design call.
+
+**How to apply:** Count executions on the pending action and drop it after one failed execute, or require a new user turn before the same action can be confirmed again (record the turn's request id on the pending action). Pin it with a test that confirms once, gets `error=True`, then calls confirm again in the same turn and asserts the device tool ran once.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** None
+
+---
+
+### Resolve the schema converter from probatio directly on HA 2026.10
+
+**What:** `_resolve_converter` in `agent/helpers.py` looks for `to_openapi` / `UNSUPPORTED` on `homeassistant.helpers.llm` first. HA 2026.10's `llm.py` imports `probatio` and no longer re-exports either name, so every 2026.10 install falls through to the fallback that checks whether `vol.Schema.__module__` starts with `probatio`. That works today (probatio 0.13.0 reports `probatio.schema`, and the box ran fine), but if the check ever misses, the code imports `voluptuous_openapi`, which 2026.10 does not install, and the module fails at import. The docstring's claim that core re-exports these names is no longer true.
+
+**Why:** Found by the red-team pass in the #735 hotfix review (2026-10-08). Not fixed there because it works on every shipped HA version and the hotfix was kept to what was broken. No test runs the 2026.10 path, because the 2026.9.4 venv still has the re-exports.
+
+**How to apply:** Before the `__module__` check, look up probatio directly: if `importlib.util.find_spec("probatio")` and `vol.Schema is probatio.Schema`, use `probatio.to_openapi` and `probatio.UNSUPPORTED`. Update the docstring. Add a test that removes `llm.to_openapi` and `llm.UNSUPPORTED` with monkeypatch and asserts the converter still resolves to probatio.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
+---
+
+### Exact `langchain-*` pins break setup whenever Home Assistant bumps a shared dependency
+
+**What:** `manifest.json` pins `langchain-openai`, `langchain-google-genai`, `langchain-anthropic`, `langchain-ollama`, `langchain` and `langgraph*` to exact versions. Each one constrains packages that Home Assistant pins for every integration in `homeassistant/package_constraints.txt`: HA 2026.10 pins `openai`, `httpx`, `pydantic`, `protobuf`, `numpy` and `Pillow`. When HA moves one of those past what HGA's exact pin accepts, the requirements can't be resolved and the integration fails to set up for everyone, until a release with a new pin ships. That happened with #735 (`langchain-openai==1.0.3` needed `openai<3`, HA 2026.10 pinned `openai==3.10.0`), reported three times (#735, #740, #741) within a day of HA's release.
+
+**Why:** Suggested by the #741 reporter (2026-10-08): use a range such as `langchain-openai>=1.6.7,<2`, so HA's resolver can pick a release compatible with the core's pins on its own. The trade-off is that HACS installs then run `langchain-*` releases we never tested, and langchain minors have changed behavior before: 1.6 moved some model names to the Responses API (#735 had to pin `use_responses_api=False`), and 1.6 opens a probe socket at `ChatOpenAI` construction. An open range also lets the resolver pick a release that needs a newer `langchain-core` than other pins allow.
+
+**How to apply:** Decide per package. Ranges capped below the next major (`>=X.Y.Z,<X+1`) suit the provider packages, whose job is to track their SDK; keep exact pins where behavior is load-bearing (`langgraph-checkpoint-postgres`, whose schema we migrate). Before switching, add a CI job that resolves the manifest against the latest HA beta's `package_constraints.txt` (`uv pip compile` with `-c`, as in the #735 investigation), so a conflict shows up during HA's beta week, not on release day. That job is worth having even if the pins stay exact.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** None
+
+---
+
 ### Ollama exact token count sends non-option keys inside `options`
 
 **What:** `_count_ollama_tokens` (`agent/token_counter.py`) copies `chat_model_options` wholesale into the `/api/generate` request's `options` object before overriding `num_predict` to 0. That dict also carries `keep_alive` and, when a reasoning model is configured, `reasoning`, which are top-level request parameters, not runner options. Ollama logs an invalid-option warning for each and ignores them, so the count still works, but the request is malformed on every exact count and a stricter server (Ollama Cloud rejects unknown values more readily, see [#614](https://github.com/goruck/home-generative-agent/issues/614)) could start refusing it.
@@ -522,15 +564,15 @@ validation.
 
 ---
 
-### A response to one push can land on a later compound record
+### A grouped push that fails to deliver still holds every finding it named
 
-**What:** `AuditStore.async_update_response` (`audit/store.py`) matches a response to the newest `not_suppressed` record whose finding, or any compound constituent, carries the anomaly id. A compound record stores every constituent, including partners still pending from an earlier push, so answering the earlier push for A writes the response (and any action outcome) onto the later record that showed B. Answering both pushes then writes the same record twice and loses one response.
+**What:** `_dispatch_compound` (`sentinel/engine.py`) registers the shown finding and every finding the "Also: ..." line named as pending prompts once `SentinelNotifier.async_notify` returns. The notifier calls the notify service with `blocking=False` and returns True once the call is scheduled, and the mobile_app notify service swallows push errors, so a push that never reached the phone still holds all of them for the prompt TTL (4 h) with nothing logged.
 
-**Why:** Pre-existing; Codex flagged it in the #723 review. Since #723 the compound push shows only a constituent that came due, so the record that showed B routinely also lists A.
+**Why:** Found by both adversarial passes in the #727 review. Before #727 an undelivered push cost only the shown finding; a grouped push now multiplies that by the number of named findings.
 
-**How to apply:** Store the anomaly id of the constituent the push showed on each audit record (for example `notification.shown_anomaly_id`) and match responses against it, falling back to the constituent scan only for records written before the field existed. Pin it with a test that answers two pushes whose records share a constituent.
+**How to apply:** There is no delivery receipt from mobile_app today, so a fix needs one: either a blocking call that surfaces service exceptions (catches a missing or misconfigured service, not a failed APNs/FCM push), or the companion app's notification-received event where it exists. Until then, keep the hold for named findings at the same footing as the shown one.
 
-**Effort:** S
+**Effort:** M
 **Priority:** P3
 
 ---
@@ -960,20 +1002,6 @@ Since step 6 this also covers `radio_new_device_joined`, and since step 7 `netwo
 
 ---
 
-### Persist notified anomaly_id so compound responses attach to the right record
-
-**What:** `async_update_response` matches compound records by ANY constituent `anomaly_id`, but the notification only carries the highest-confidence constituent's id. If an older compound C1 notified via constituent A, and a newer compound C2 also contains A but notified via higher-confidence B, a late user response for A attaches to C2 — wrong compound, corrupted response KPIs and false-positive attribution.
-
-**Why:** Found by Codex review of #511. Pre-existing; #511's not_suppressed preference doesn't change it (newest-match semantics already existed). Needs a schema touch, so it deserves its own change.
-
-**How to apply:** Record the dispatched constituent's `anomaly_id` in the audit record at append time (e.g. `notification.notified_anomaly_id`, set from `best.anomaly_id` in `_dispatch_compound` / `finding.anomaly_id` in the simple path). In `async_update_response`, match on `notified_anomaly_id` first, falling back to the current constituent scan for old records.
-
-**Effort:** S
-**Priority:** P3
-**Depends on:** PR #511
-
----
-
 ### Per-rule precision tracking with retirement flagging
 
 **What:** Health-sensor KPIs (`_compute_kpis` in `core/sentinel_health_sensor.py`) are aggregate-only: `false_positive_rate_14d`, `user_override_rate`, and `triage_suppress_rate` are computed across all findings, so a single decaying rule is invisible until it drags the global numbers. Add per-rule breakdowns keyed by finding type (and dynamic-rule id where available): notified count, user-response count, false-positive count, snooze/dismiss count. Flag rules whose per-rule FP or snooze rate exceeds a threshold as retirement candidates.
@@ -1081,6 +1109,19 @@ Since step 6 this also covers `radio_new_device_joined`, and since step 7 `netwo
 ---
 
 ## Discovery
+
+### About a fifth of discovery cycles are thrown away as "not valid JSON", and the log hides why
+
+**What:** On the dev box, `Discovery output was not valid JSON.` was logged 10 times between 2026-10-06 05:16 and 2026-10-08 05:00 PDT, out of roughly 48 hourly cycles. The other cycles complete normally ("3 generated, N novel"). The warning goes through `_log_limiter`, so 10 may be an undercount. Each one drops the whole cycle (`discovery_engine.py`, the `json.loads(content)` branch after `extract_final`), and nothing records the raw output, so the cause can't be seen from the log.
+
+**Why:** Not user-visible. Discovery is advisory and retries the next hour, and no one would search for this. But a fifth of the discovery model calls are paid for and discarded. The likely causes are all cheap to handle once seen: a markdown code fence around the JSON, a prose preamble or trailer, or output truncated at the token limit (unbalanced braces).
+
+**How to apply:** First make it observable: log the failure's position and a capped, sanitized excerpt of `content` (first and last ~200 chars) at DEBUG, plus its length and whether it ends in `}`. Then decide from real samples: strip a surrounding code fence, or extract the outermost `{...}` before `json.loads`, or raise the output budget if it's truncation. Keep the schema validation that follows unchanged. Add a test per sample shape seen.
+
+**Effort:** S
+**Priority:** P3
+
+---
 
 ### Identically-worded candidates about different devices still merge; the device token cannot split them as a matcher
 

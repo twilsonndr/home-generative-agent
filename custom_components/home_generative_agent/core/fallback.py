@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING, Any, cast
 from homeassistant.exceptions import HomeAssistantError
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-from ..const import EMBEDDING_MODEL_DIMS  # noqa: TID252
+from ..const import (  # noqa: TID252
+    EMBEDDING_MODEL_DIMS,
+    HTTP_STATUS_BAD_REQUEST,
+    HTTP_STATUS_METHOD_NOT_ALLOWED,
+    HTTP_STATUS_NOT_IMPLEMENTED,
+    HTTP_STATUS_WEBPAGE_NOT_FOUND,
+)
 from .prompt_cache import adapt_system_message_for_model
 
 if TYPE_CHECKING:
@@ -43,8 +49,10 @@ except ImportError:
     pass
 
 try:
+    from openai import APIStatusError as OpenAIAPIStatusError
     from openai import BadRequestError as OpenAIBadRequestError
 except ImportError:
+    OpenAIAPIStatusError = None  # type: ignore[assignment, misc]
     OpenAIBadRequestError = None  # type: ignore[assignment, misc]
 
 # Sampling parameters that can be safely omitted when a model rejects them
@@ -52,6 +60,21 @@ except ImportError:
 # and non-reasoning models reject reasoning_effort outright). Each name must
 # match a registered ConfigurableField id so the retry can null it.
 DROPPABLE_SAMPLING_PARAMS = frozenset({"temperature", "top_p", "reasoning_effort"})
+
+# ConfigurableField id that selects the OpenAI API (Chat Completions vs
+# Responses). Never nulled: None hands the choice back to langchain-openai's
+# model-name routing. Only a backend that does not serve /responses flips it,
+# to False.
+USE_RESPONSES_API_PARAM = "use_responses_api"
+_RESPONSES_PATH_SUFFIX = "/responses"
+# Statuses that mean the backend has no /responses route at all.
+_NO_ROUTE_STATUSES = frozenset(
+    {
+        HTTP_STATUS_WEBPAGE_NOT_FOUND,
+        HTTP_STATUS_METHOD_NOT_ALLOWED,
+        HTTP_STATUS_NOT_IMPLEMENTED,
+    }
+)
 
 _UNSUPPORTED_PARAM_CODES = frozenset({"unsupported_value", "unsupported_parameter"})
 
@@ -65,6 +88,9 @@ _PARAM_ALIASES = {
 
 def unsupported_sampling_param(err: Exception) -> str | None:
     """Return the droppable sampling param an OpenAI 400 rejected, if any."""
+    # Checked first: an unserved /responses route answers 404/405/501, not 400.
+    if _responses_api_unsupported(err):
+        return USE_RESPONSES_API_PARAM
     if OpenAIBadRequestError is None or not isinstance(err, OpenAIBadRequestError):
         return None
     param = getattr(err, "param", None)
@@ -75,6 +101,40 @@ def unsupported_sampling_param(err: Exception) -> str | None:
     if _requires_no_reasoning_for_tools(err):
         return "reasoning_effort"
     return None
+
+
+def _responses_api_unsupported(err: Exception) -> bool:
+    """
+    Return True when a Responses API call failed because the API is unserved.
+
+    A user can force the Responses API for a model or OpenAI-compatible server
+    that lacks it. The backend then answers /responses with 404/405/501, or a
+    400 that names the endpoint as unsupported; retrying on Chat Completions
+    recovers the call instead of failing every turn.
+    """
+    if OpenAIAPIStatusError is None or not isinstance(err, OpenAIAPIStatusError):
+        return False
+    request = getattr(err, "request", None)
+    url = str(getattr(request, "url", "") or "")
+    if not url.rstrip("/").endswith(_RESPONSES_PATH_SUFFIX):
+        return False
+    # OpenAI answers an unknown or inaccessible model with 404 too; that is a
+    # model problem Chat Completions cannot fix, not a missing route.
+    if getattr(err, "code", None) == "model_not_found":
+        return False
+    status = getattr(err, "status_code", None)
+    if status in _NO_ROUTE_STATUSES:
+        return True
+    message = str(getattr(err, "message", "") or err).lower()
+    # Backends phrase this both ways ("Unsupported endpoint: /v1/responses",
+    # "... is not supported in the Responses API"). A param 400 such as
+    # "Unsupported parameter: 'temperature'" never names the endpoint, so it
+    # is not caught here.
+    return (
+        status == HTTP_STATUS_BAD_REQUEST
+        and ("not supported" in message or "unsupported" in message)
+        and ("/responses" in message or "responses api" in message)
+    )
 
 
 def _requires_no_reasoning_for_tools(err: Exception) -> bool:
@@ -106,16 +166,22 @@ def sampling_param_overrides(err: BaseException, max_depth: int = 10) -> dict[st
 
     Every droppable param is nulled (omitted from the request), except that the
     GPT-6 tools rejection needs an explicit reasoning_effort "none": omitting it
-    leaves the model's own default effort, which is rejected the same way.
+    leaves the model's own default effort, which is rejected the same way. A
+    Responses API call the backend does not serve retries on Chat Completions.
+    Both checks run on every error in the chain: one error can match both
+    (the GPT-6 tools message names /v1/responses), and unsupported_sampling_param
+    may have reported either one, so each must leave its override behind.
     """
     overrides: dict[str, Any] = dict.fromkeys(DROPPABLE_SAMPLING_PARAMS)
     current: BaseException | None = err
     for _ in range(max_depth):
         if current is None:
             break
-        if isinstance(current, Exception) and _requires_no_reasoning_for_tools(current):
-            overrides["reasoning_effort"] = "none"
-            break
+        if isinstance(current, Exception):
+            if _requires_no_reasoning_for_tools(current):
+                overrides["reasoning_effort"] = "none"
+            if _responses_api_unsupported(current):
+                overrides[USE_RESPONSES_API_PARAM] = False
         current = current.__cause__
     return overrides
 

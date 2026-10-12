@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import functools
 import hashlib
+import importlib
 import json
 import logging
 import re
@@ -45,6 +46,7 @@ from .agent.automation_targets import normalize_notify_service
 from .agent.graph import workflow
 from .agent.helpers import (
     active_llm_api_ids,
+    chat_log_tool_result,
     filter_excluded_tools,
     format_tool,
     is_actuation_tool,
@@ -391,7 +393,10 @@ def _populate_chat_log_from_response(
                     agent_id=agent_id,
                     tool_call_id=msg.tool_call_id,
                     tool_name=msg.name or "",
-                    tool_result=_normalize_tool_result(msg.content),
+                    **chat_log_tool_result(
+                        _normalize_tool_result(msg.content),
+                        error=msg.status == "error",
+                    ),
                 )
             )
 
@@ -473,11 +478,17 @@ def _handle_on_chain_end(
         if tool_call_id in pending_tool_map:
             pending_tool_map.pop(tool_call_id)
             deltas.append(
-                ToolResultContentDeltaDict(
-                    role="tool_result",
-                    tool_call_id=str(tool_call_id),
-                    tool_name=str(msg.name or ""),
-                    tool_result=_normalize_tool_result(msg.content),
+                cast(
+                    "ToolResultContentDeltaDict",
+                    {
+                        "role": "tool_result",
+                        "tool_call_id": str(tool_call_id),
+                        "tool_name": str(msg.name or ""),
+                        **chat_log_tool_result(
+                            _normalize_tool_result(msg.content),
+                            error=msg.status == "error",
+                        ),
+                    },
                 )
             )
 
@@ -502,11 +513,14 @@ def _get_synthetic_rejections(
     ensuring Home Assistant receives a final state for all initiated calls.
     """
     return [
-        ToolResultContentDeltaDict(
-            role="tool_result",
-            tool_call_id=call_id,
-            tool_name=tc.get("name") or "tool",
-            tool_result={"error": error_msg},
+        cast(
+            "ToolResultContentDeltaDict",
+            {
+                "role": "tool_result",
+                "tool_call_id": call_id,
+                "tool_name": tc.get("name") or "tool",
+                **chat_log_tool_result({"error": error_msg}, error=True),
+            },
         )
         for call_id, tc in pending_tool_map.items()
     ]
@@ -807,10 +821,17 @@ class _ThinkStreamFilter:
         return tail
 
 
-# HA's Assist pipeline (assist_pipeline/pipeline.py) starts streaming speech
-# only after more than this many characters, or on text followed by a tool
-# call. Read from HA at runtime; this is the value when it cannot be read.
+# HA's Assist pipeline starts streaming speech only after more than this many
+# characters, or on text followed by a tool call. Read from HA at runtime; this
+# is the value when it cannot be read.
 _DEFAULT_STREAM_RESPONSE_CHARS = 60
+
+# Where HA keeps STREAM_RESPONSE_CHARS, newest first: 2026.10 moved it from
+# assist_pipeline/pipeline.py to assist_pipeline/default_pipeline.py.
+_STREAM_RESPONSE_CHARS_MODULES = (
+    "homeassistant.components.assist_pipeline.default_pipeline",
+    "homeassistant.components.assist_pipeline.pipeline",
+)
 
 
 @functools.cache
@@ -819,14 +840,15 @@ def _stream_response_chars() -> int:
     # Imported lazily and defensively: assist_pipeline is an after_dependency
     # and the constant is internal. If it moves, the default keeps the same
     # behavior, and if HA's rule changes, padding only fails to start early.
-    try:
-        from homeassistant.components.assist_pipeline import (  # noqa: PLC0415
-            pipeline as ha_pipeline,
-        )
-    except ImportError:
-        return _DEFAULT_STREAM_RESPONSE_CHARS
-    value = getattr(ha_pipeline, "STREAM_RESPONSE_CHARS", None)
-    return value if isinstance(value, int) else _DEFAULT_STREAM_RESPONSE_CHARS
+    for module_name in _STREAM_RESPONSE_CHARS_MODULES:
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError:
+            continue
+        value = getattr(module, "STREAM_RESPONSE_CHARS", None)
+        if isinstance(value, int):
+            return value
+    return _DEFAULT_STREAM_RESPONSE_CHARS
 
 
 def _padded_for_streaming(text: str) -> str:

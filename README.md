@@ -62,7 +62,7 @@ Most AI conversation integrations are prompt passthroughs: they forward your wor
 
 | Requirement | Notes |
 | --- | --- |
-| Home Assistant | 2025.5.0 minimum; 2026.4.0+ for streaming responses; 2026.9 (probatio schema core) supported |
+| Home Assistant | 2026.8.0 minimum (3.43.3 and later); 2026.9 (probatio schema core) and 2026.10 supported |
 | HACS | Required for the recommended install path; manual install is also supported |
 | PostgreSQL with pgvector | Provided as a bundled HA app (step 1 below) |
 | Model provider | At least one of: OpenAI, Gemini, Anthropic, Ollama, or any OpenAI-compatible server |
@@ -112,7 +112,7 @@ You can now open the HA Assist panel and start talking to your home.
 | Guide | Contents |
 | --- | --- |
 | [Installation](docs/installation.md) | HACS install, manual install, optional apps (Ollama, face recognition, local speech server for STT/TTS) |
-| [Configuration](docs/configuration.md) | Model providers, features, per-model thinking/reasoning & budget, Tool Retrieval (RAG), per-tool exclusions & always-included tools, LLM API, STT and TTS (OpenAI or local, streaming replies, spoken acknowledgement), YAML mode, Critical Action PIN, prompt caching, camera description language & extra VLM instructions, UI languages (en/cs/ru/tr) |
+| [Configuration](docs/configuration.md) | Model providers, features, per-model thinking/reasoning & budget, per-model OpenAI API (Chat Completions or Responses), Tool Retrieval (RAG), per-tool exclusions & always-included tools, LLM API, STT and TTS (OpenAI or local, streaming replies, spoken acknowledgement), YAML mode, Critical Action PIN, prompt caching, camera description language & extra VLM instructions, UI languages (en/cs/ru/tr) |
 | [Sentinel](docs/sentinel.md) | Anomaly detection pipeline, built-in rules, the Home Assistant & network security audit (router and eero setup notes), triage, baseline, discovery templates, blueprints, notification quiet hours, services API, health sensor |
 | [Camera Entities](docs/camera-entities.md) | Image and sensor entities, dashboards, automations, proactive video analysis, face recognition |
 | [Architecture](docs/architecture.md) | LangGraph agent, model tiers, context management, streaming, latency, tools, the home-state snapshot and network audit adapters |

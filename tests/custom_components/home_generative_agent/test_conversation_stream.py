@@ -8,6 +8,8 @@ import contextlib
 import json
 import sys
 import types
+from collections import deque
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock
 
@@ -60,8 +62,13 @@ def _stub_ha_conversation() -> None:
 
 _stub_ha_conversation()
 
+from custom_components.home_generative_agent import conversation as hga_conversation
+from custom_components.home_generative_agent.agent.helpers import chat_log_tool_result
 from custom_components.home_generative_agent.conversation import (
+    _get_synthetic_rejections,
+    _handle_on_chain_end,
     _normalize_tool_result,
+    _populate_chat_log_from_response,
     _reply_entry,
     _sanitize_tool_result_dict,
     _stream_langgraph_to_ha,
@@ -69,6 +76,13 @@ from custom_components.home_generative_agent.conversation import (
     _with_tool_acknowledgement,
 )
 from custom_components.home_generative_agent.core.utils import extract_final
+
+
+def _tool_data(delta: Any) -> Any:
+    """Return a tool-result delta's data in either HA chat-log shape."""
+    if "tool_result" in delta:
+        return delta["tool_result"]
+    return delta["result"].data
 
 
 async def _streamed_text(event_stream: AsyncGenerator[dict[str, Any]]) -> str:
@@ -403,7 +417,7 @@ async def test_stream_partial_results() -> None:
     assert cast("Any", deltas[2])["tool_call_id"] == "call_1"
     assert cast("Any", deltas[3])["role"] == "tool_result"
     assert cast("Any", deltas[3])["tool_call_id"] == "call_2"
-    tool_result = cast("Any", deltas[3])["tool_result"]
+    tool_result = _tool_data(deltas[3])
     assert "rejected by routing policy" in tool_result["error"]
 
 
@@ -457,7 +471,7 @@ async def test_stream_with_tool_calls() -> None:
         "role": "tool_result",
         "tool_call_id": "call_1",
         "tool_name": "turn_on",
-        "tool_result": {"result": "Light turned on"},
+        **chat_log_tool_result({"result": "Light turned on"}),
     }
 
 
@@ -502,7 +516,9 @@ async def test_stream_orphaned_tool_calls() -> None:
         "role": "tool_result",
         "tool_call_id": "call_1",
         "tool_name": "turn_on",
-        "tool_result": {"error": "Tool execution rejected by routing policy."},
+        **chat_log_tool_result(
+            {"error": "Tool execution rejected by routing policy."}, error=True
+        ),
     }
 
 
@@ -679,7 +695,7 @@ async def test_stream_idless_tool_calls() -> None:
 
     result_delta = cast("ToolResultContentDeltaDict", deltas[2])
     assert result_delta.get("tool_call_id") == generated_id
-    assert result_delta.get("tool_result") == {"result": "Success"}
+    assert _tool_data(result_delta) == {"result": "Success"}
 
 
 @pytest.mark.asyncio
@@ -712,7 +728,7 @@ async def test_stream_graph_error_persistence_guard() -> None:
     assert deltas[2]["role"] == "tool_result"
     result_delta = cast("ToolResultContentDeltaDict", deltas[2])
     assert result_delta.get("tool_call_id") == "call_1"
-    tool_result = cast("dict[str, Any]", result_delta.get("tool_result"))
+    tool_result = cast("dict[str, Any]", _tool_data(result_delta))
     assert "failed mid-stream" in tool_result["error"]
 
 
@@ -1240,3 +1256,120 @@ def test_reply_entry_ignores_only_a_lone_acknowledgement() -> None:
     assert _reply_entry([*only_ack, "The light is off."], 1) == "The light is off."
     assert _reply_entry(["user request", "reply"], None) == "reply"
     assert _reply_entry([], None) is None
+
+
+# ---------------------------------------------------------------------------
+# HA 2026.10 renamed the chat log's tool result to ``result: llm.ToolResult``
+# (issue #735). ``tool_result=`` is a TypeError on ToolResultContent there and a
+# deprecated delta key; 2026.9 has no llm.ToolResult and wants ``tool_result``.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class _ToolResult2610:
+    data: Any
+    error: bool = False
+
+
+@dataclass(frozen=True)
+class _ToolResultContent2610:
+    agent_id: str
+    tool_call_id: str
+    tool_name: str
+    result: _ToolResult2610
+
+
+@pytest.fixture
+def ha_2026_10(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give llm and conversation HA 2026.10's tool result shapes."""
+    from homeassistant.helpers import llm  # noqa: PLC0415
+
+    monkeypatch.setattr(llm, "ToolResult", _ToolResult2610, raising=False)
+    monkeypatch.setattr(
+        hga_conversation.conversation,
+        "ToolResultContent",
+        _ToolResultContent2610,
+        raising=False,
+    )
+
+
+def _tool_message() -> ToolMessage:
+    return ToolMessage(
+        content=json.dumps({"success": True}), tool_call_id="c1", name="HassTurnOn"
+    )
+
+
+@pytest.mark.usefixtures("ha_2026_10")
+def test_schema_first_backfill_builds_a_2026_10_tool_result() -> None:
+    """
+    Field-shaped case: schema-first turns crashed after the device acted.
+
+    "ToolResultContent.__init__() got an unexpected keyword argument
+    'tool_result'".
+    """
+    chat_log = MagicMock()
+
+    _populate_chat_log_from_response(chat_log, "conversation.hga", [_tool_message()])
+
+    added = chat_log.async_add_assistant_content_without_tools.call_args.args[0]
+    assert added.result == _ToolResult2610(data={"success": True})
+
+
+@pytest.mark.usefixtures("ha_2026_10")
+def test_streamed_tool_result_uses_the_2026_10_result_key() -> None:
+    pending: dict[str, Any] = {"c1": {"name": "HassTurnOn", "args": {}, "id": "c1"}}
+
+    deltas = _handle_on_chain_end(
+        {"output": {"messages": [_tool_message()]}}, pending, deque()
+    )
+
+    delta = cast("dict[str, Any]", deltas[0])
+    assert "tool_result" not in delta
+    assert delta["result"] == _ToolResult2610(data={"success": True})
+
+
+@pytest.mark.usefixtures("ha_2026_10")
+def test_synthetic_rejection_is_flagged_as_an_error() -> None:
+    pending: dict[str, Any] = {"c1": {"name": "HassTurnOn", "args": {}, "id": "c1"}}
+
+    delta = cast("dict[str, Any]", _get_synthetic_rejections(pending, "Rejected.")[0])
+
+    assert delta["result"].error is True
+    assert delta["result"].data == {"error": "Rejected."}
+
+
+def test_streamed_tool_result_keeps_tool_result_before_2026_10(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from homeassistant.helpers import llm  # noqa: PLC0415
+
+    monkeypatch.delattr(llm, "ToolResult", raising=False)
+    pending: dict[str, Any] = {"c1": {"name": "HassTurnOn", "args": {}, "id": "c1"}}
+
+    deltas = _handle_on_chain_end(
+        {"output": {"messages": [_tool_message()]}}, pending, deque()
+    )
+
+    delta = cast("dict[str, Any]", deltas[0])
+    assert delta["tool_result"] == {"success": True}
+    assert "result" not in delta
+
+
+@pytest.mark.usefixtures("ha_2026_10")
+def test_failed_tool_message_is_flagged_as_an_error_in_the_chat_log() -> None:
+    """A tool that failed must not show as a success in HA's Show Details."""
+    failed = ToolMessage(
+        content=json.dumps({"error": "Lock jammed"}),
+        tool_call_id="c1",
+        name="HassTurnOn",
+        status="error",
+    )
+    pending: dict[str, Any] = {"c1": {"name": "HassTurnOn", "args": {}, "id": "c1"}}
+    chat_log = MagicMock()
+
+    deltas = _handle_on_chain_end({"output": {"messages": [failed]}}, pending, deque())
+    _populate_chat_log_from_response(chat_log, "conversation.hga", [failed])
+
+    assert cast("dict[str, Any]", deltas[0])["result"].error is True
+    added = chat_log.async_add_assistant_content_without_tools.call_args.args[0]
+    assert added.result.error is True
