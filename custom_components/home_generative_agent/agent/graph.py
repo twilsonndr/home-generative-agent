@@ -76,6 +76,7 @@ from custom_components.home_generative_agent.const import (
 from ..core.fallback import (  # noqa: TID252
     FallbackChatModel,
     ainvoke_dropping_unsupported_params,
+    describe_overrides,
     sampling_param_overrides,
     unsupported_sampling_param_in_chain,
 )
@@ -2762,14 +2763,13 @@ async def _invoke_chat_model_with_sampling_rebind(  # noqa: PLR0913
         param = unsupported_sampling_param_in_chain(err)
         if param is None:
             raise
+        overrides = sampling_param_overrides(err)
         LOGGER.warning(
-            "Chat model rejected unsupported sampling parameter %r; retrying "
-            "once with provider-default sampling parameters.",
+            "Chat model rejected the request (%r); retrying once with %s.",
             param,
+            describe_overrides(overrides),
         )
-        stripped = base_model.with_config(
-            config={"configurable": sampling_param_overrides(err)}
-        )
+        stripped = base_model.with_config(config={"configurable": overrides})
         if selected_tools:
             stripped = await hass.async_add_executor_job(
                 partial(

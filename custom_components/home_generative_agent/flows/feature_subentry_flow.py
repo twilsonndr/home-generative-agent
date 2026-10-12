@@ -265,7 +265,7 @@ _REASONING_CHOICES: dict[str, list[tuple[str, str]]] = {
     ],
     "openai": [
         ("Provider default", "default"),
-        ("No reasoning (GPT-5.1+ / GPT-6)", "none"),
+        ("No reasoning (GPT-5.1+, GPT-6 Sol and Luna)", "none"),
         ("Minimal effort", "minimal"),
         ("Low effort", "low"),
         ("Medium effort", "medium"),
