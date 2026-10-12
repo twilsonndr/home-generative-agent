@@ -3732,6 +3732,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
     stop_listener_fired = False
 
     async def _stop_background_tasks() -> None:
+        # Write usage records now and stop recording. Store would also write a
+        # pending delayed save at final write, but flushing here does not rely
+        # on that, and calls still in flight are dropped, not half-saved.
+        await usage_tracker.async_flush()
         await sentinel.stop()
         await discovery_engine.stop()
         if baseline_updater is not None:
