@@ -143,6 +143,29 @@ async_migrate_entry = cast(
 )
 
 
+_LISTED_MODELS: list[str] = []
+_LISTED_MODEL_CALLS: list[tuple[str | None, str | None]] = []
+
+
+@pytest.fixture(autouse=True)
+def _no_live_model_listing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the flows' /v1/models lookups off the network."""
+    _LISTED_MODELS.clear()
+    _LISTED_MODEL_CALLS.clear()
+
+    async def _list(
+        _hass: Any, api_key: str | None, base_url: str | None = None, **_k: Any
+    ) -> list[str]:
+        _LISTED_MODEL_CALLS.append((api_key, base_url))
+        return list(_LISTED_MODELS)
+
+    for module in ("feature_subentry_flow", "openai_compatible_endpoint"):
+        monkeypatch.setattr(
+            f"custom_components.home_generative_agent.flows.{module}.list_openai_models",
+            _list,
+        )
+
+
 class DummySubentry:
     """Simple stand-in for ConfigSubentry."""
 
@@ -5009,3 +5032,92 @@ async def test_stt_flow_keeps_other_fields_when_model_name_is_missing(
     assert (result.get("errors") or {}).get("base") == "invalid_model"
     assert _schema_marker(result, "language").default() == "cs"
     assert _schema_marker(result, "extra_body").default() == '{"hotwords": "Frigate"}'
+
+
+def _select_config(form: Any, field: str) -> Mapping[str, Any]:
+    return form["data_schema"].schema[_schema_marker(form, field)].config
+
+
+def _select_values(form: Any, field: str) -> list[str]:
+    return [opt["value"] for opt in _select_config(form, field)["options"]]
+
+
+@pytest.mark.asyncio
+async def test_feature_flow_lists_openai_compatible_models(
+    hass: HomeAssistant,
+) -> None:
+    """The model picker offers what the OpenAI-compatible server lists."""
+    _LISTED_MODELS.extend(["gemma-4-e4b", "qwen3-8b"])
+    entry, feature = _thinking_entry()
+    flow = _thinking_flow(hass, entry, feature)
+
+    await flow.async_step_user()
+    form = await flow.async_step_conversation({"model_provider_id": "prov1"})
+    values = _select_values(form, CONF_FEATURE_MODEL_NAME)
+    assert values[-2:] == ["gemma-4-e4b", "qwen3-8b"]
+    # The keyless "none" sentinel is never sent as a bearer token.
+    assert _LISTED_MODEL_CALLS == [(None, "http://llama:8080")]
+
+
+@pytest.mark.asyncio
+async def test_feature_flow_lists_openai_chat_models_only(
+    hass: HomeAssistant,
+) -> None:
+    """Official OpenAI listings drop audio/image/embedding models from chat."""
+    _LISTED_MODELS.extend(
+        [
+            "gpt-6-luna",
+            "gpt-6.2-nova",
+            "gpt-transcribe",
+            "gpt-4o-mini-tts",
+            "gpt-image-2",
+            "text-embedding-3-small",
+        ]
+    )
+    entry, feature = _thinking_entry()
+    entry.subentries["prov1"].data = {
+        "provider_type": "openai",
+        "capabilities": ["chat"],
+        "settings": {"api_key": "sk-test"},
+    }
+    flow = _thinking_flow(hass, entry, feature)
+
+    await flow.async_step_user()
+    form = await flow.async_step_conversation({"model_provider_id": "prov1"})
+    values = _select_values(form, CONF_FEATURE_MODEL_NAME)
+    assert values[0] == "gpt-6.1-sol"
+    assert "gpt-6.2-nova" in values
+    assert values.count("gpt-6-luna") == 1
+    for non_chat in (
+        "gpt-transcribe",
+        "gpt-4o-mini-tts",
+        "gpt-image-2",
+        "text-embedding-3-small",
+    ):
+        assert non_chat not in values
+    assert _LISTED_MODEL_CALLS == [("sk-test", None)]
+
+
+@pytest.mark.asyncio
+async def test_stt_provider_flow_lists_openai_transcription_models(
+    hass: HomeAssistant,
+) -> None:
+    """The STT model picker adds listed transcription models and allows free text."""
+    _LISTED_MODELS.extend(["gpt-6-luna", "gpt-live-transcribe-2", "gpt-transcribe"])
+    entry = DummyEntry()
+    entry.subentries["openai1"] = DummySubentry(
+        "openai1",
+        SUBENTRY_TYPE_MODEL_PROVIDER,
+        "OpenAI",
+        {"provider_type": "openai", "settings": {"api_key": "sk-shared"}},
+    )
+    flow = _make_stt_flow(hass, entry)
+
+    await flow.async_step_provider({"provider_type": "openai"})
+    form = await flow.async_step_credentials({"openai_provider_subentry_id": "openai1"})
+    values = _select_values(form, "model_name")
+    assert values[0] == "gpt-transcribe"
+    assert "gpt-live-transcribe-2" in values
+    assert "gpt-6-luna" not in values
+    assert _select_config(form, "model_name")["custom_value"] is True
+    assert _LISTED_MODEL_CALLS == [("sk-shared", None)]

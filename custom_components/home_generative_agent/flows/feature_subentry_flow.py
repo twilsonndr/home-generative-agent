@@ -72,7 +72,10 @@ from ..core.db_utils import build_postgres_uri  # noqa: TID252
 from ..core.utils import (  # noqa: TID252
     CannotConnectError,
     InvalidAuthError,
+    filter_openai_models,
     list_ollama_models,
+    list_openai_models,
+    merge_model_options,
     validate_db_uri,
 )
 from .localization import async_common_translation
@@ -254,10 +257,13 @@ _REASONING_CHOICES: dict[str, list[tuple[str, str]]] = {
     ],
     "openai": [
         ("Provider default", "default"),
+        ("No reasoning (GPT-5.1+ / GPT-6)", "none"),
         ("Minimal effort", "minimal"),
         ("Low effort", "low"),
         ("Medium effort", "medium"),
         ("High effort", "high"),
+        ("Extra-high effort (GPT-6)", "xhigh"),
+        ("Max effort (GPT-6)", "max"),
     ],
     "openai_compatible": [
         ("Provider default", "default"),
@@ -462,6 +468,48 @@ class FeatureSubentryFlow(ConfigSubentryFlow):
         self._active_feature: str | None = None
         self._pending_provider_id: str | None = None
         self._ollama_model_cache: dict[str, list[str]] = {}
+        self._openai_model_cache: dict[str, list[str]] = {}
+
+    async def _async_openai_model_options(
+        self,
+        entry: ConfigEntry,
+        provider_id: str | None,
+        provider_type: str,
+        category: str,
+        builtin: list[str],
+    ) -> list[str]:
+        """
+        Return the built-in models followed by those the endpoint lists.
+
+        Official OpenAI listings are filtered to models that can serve the
+        category (no TTS/transcription/image models in the chat picker);
+        OpenAI-compatible servers name models freely, so only the embedding
+        category is narrowed, and only when that leaves something.
+        """
+        provider_subentry = entry.subentries.get(provider_id) if provider_id else None
+        settings = (
+            provider_subentry.data.get("settings", {}) if provider_subentry else {}
+        )
+        api_key = settings.get("api_key")
+        base_url = settings.get("base_url") if provider_type != "openai" else None
+        if provider_type == "openai" and not api_key:
+            return builtin
+        if provider_type == "openai_compatible" and not base_url:
+            return builtin
+        cache_key = f"{provider_id}:{base_url or ''}"
+        listed = self._openai_model_cache.get(cache_key)
+        if listed is None:
+            listed = await list_openai_models(
+                self.hass,
+                api_key if isinstance(api_key, str) and api_key != "none" else None,
+                base_url if isinstance(base_url, str) else None,
+            )
+            self._openai_model_cache[cache_key] = listed
+        if provider_type == "openai":
+            listed = filter_openai_models(listed, category)
+        elif category == "embedding":
+            listed = filter_openai_models(listed, category) or listed
+        return merge_model_options(builtin, listed)
 
     def _schedule_reload(self) -> None:
         entry = self._get_entry()
@@ -991,6 +1039,10 @@ class FeatureSubentryFlow(ConfigSubentryFlow):
                     self._ollama_model_cache[ollama_url] = cached
                 if cached:
                     model_options = cached
+        elif provider_type in ("openai", "openai_compatible"):
+            model_options = await self._async_openai_model_options(
+                entry, provider_id, provider_type, category or "", model_options
+            )
         fallback_opts = _fallback_provider_options(entry, category or "", provider_id)
         fallback_defaults = [
             fid
