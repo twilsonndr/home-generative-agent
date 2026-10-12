@@ -371,12 +371,14 @@
             "keepalive_s": "Ollama keepalive (seconds or Never unload (-1))",
             "context_size": "Ollama context size (tokens)",
             "reasoning": "Thinking / reasoning",
-            "reasoning_budget": "Thinking budget (tokens)"
+            "reasoning_budget": "Thinking budget (tokens)",
+            "openai_api": "OpenAI API"
           },
           "data_description": {
             "fallback_provider_ids": "Ordered list of fallback providers. The first available provider is used if the primary fails.",
             "reasoning": "Controls model thinking for the selected chat model. Provider default leaves the server/model behavior unchanged; Off and On set it explicitly; effort levels are passed to providers that support them. Settings are remembered per model name, so switching models restores each model's configuration.",
-            "reasoning_budget": "Optional thinking-token budget for providers that support one (OpenAI-compatible servers such as llama.cpp, Gemini, Anthropic). Leave empty for the provider default."
+            "reasoning_budget": "Optional thinking-token budget for providers that support one (OpenAI-compatible servers such as llama.cpp, Gemini, Anthropic). Leave empty for the provider default.",
+            "openai_api": "Which OpenAI API this model uses. Automatic picks the best one for the model: the Responses API for GPT-6 chat models (they cannot combine tools and reasoning on Chat Completions) and for OpenAI models served only there (codex, pro), and Chat Completions otherwise. Choose one explicitly to override it, for example the Responses API on an OpenAI-compatible server that supports it. If the chosen API cannot serve a request, the call is retried automatically (Chat Completions with reasoning turned off for GPT-6 tool calls, or Chat Completions when a server has no Responses API). The choice is remembered per model name."
           }
         },
         "database": {
