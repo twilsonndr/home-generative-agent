@@ -336,6 +336,10 @@ def _record_from_dict(raw: Any) -> UsageRecord | None:
             for key in ("input_tokens", "cached_tokens", "output_tokens")
         )
         and isinstance(usage_reported, bool)
+        # Cache reads are part of the input; more of them than input tokens
+        # means a corrupted row, which would otherwise be clamped and
+        # underpriced.
+        and raw["cached_tokens"] <= raw["input_tokens"]
     )
     if not valid:
         return None
@@ -702,6 +706,7 @@ class UsageCostCallback(BaseCallbackHandler):
             _is_count(counts[0])
             and _is_count(counts[2])
             and (counts[1] is None or _is_count(counts[1]))
+            and cached <= input_tokens
         )
         self._tracker.record_threadsafe(
             UsageRecord(

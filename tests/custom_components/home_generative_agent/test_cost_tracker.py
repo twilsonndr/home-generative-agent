@@ -797,3 +797,38 @@ def test_unknown_price_fields_are_rejected() -> None:
         )
         == "invalid_model_prices"
     )
+
+
+def test_stored_row_with_more_cached_than_input_is_skipped() -> None:
+    """Cache reads cannot exceed input tokens; such a row is corrupted."""
+    row = {
+        "ts": time.time(),
+        "category": "chat",
+        "provider": "openai",
+        "model": "gpt-5",
+        "api": None,
+        "input_tokens": 500,
+        "cached_tokens": 1000,
+        "output_tokens": 0,
+    }
+    assert ct._record_from_dict(row) is None
+    assert ct._record_from_dict({**row, "cached_tokens": 500}) is not None
+
+
+@pytest.mark.asyncio
+async def test_reported_cache_above_input_is_unpriced(hass: HomeAssistant) -> None:
+    """Provider usage with more cache reads than input is unpriced, not clamped."""
+    tracker = UsageCostTracker(hass)
+    reply = AIMessage(
+        content="hi",
+        usage_metadata={
+            "input_tokens": 100,
+            "output_tokens": 5,
+            "total_tokens": 105,
+            "input_token_details": {"cache_read": 500},
+        },
+        response_metadata={"model_name": "gpt-5", "id": "resp_1"},
+    )
+    await _model_returning(reply, tracker).ainvoke("hello")
+    await hass.async_block_till_done()
+    assert tracker.summary()["last_call"]["cost"] is None
