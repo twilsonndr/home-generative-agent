@@ -15,6 +15,9 @@ from custom_components.home_generative_agent.core import utils
 from custom_components.home_generative_agent.core.fallback import (
     unsupported_sampling_param,
 )
+from custom_components.home_generative_agent.core.openai_models import (
+    openai_supports_no_reasoning,
+)
 from custom_components.home_generative_agent.core.utils import (
     filter_openai_models,
     list_openai_models,
@@ -93,12 +96,49 @@ async def test_list_openai_models_failure_returns_empty(
     assert await list_openai_models(None, "sk-test") == []  # type: ignore[arg-type]
 
 
+def test_filter_openai_models_keeps_fine_tuned_models() -> None:
+    """Fine-tuned ids are classified by their base model."""
+    ids = [
+        "ft:gpt-4o-mini-2024-07-18:acme::abc123",
+        "ft:gpt-4o-mini-tts:acme::def456",
+        "ft:davinci-002:acme::ghi789",
+    ]
+    assert filter_openai_models(ids, "chat") == [
+        "ft:gpt-4o-mini-2024-07-18:acme::abc123"
+    ]
+    assert filter_openai_models(ids, "tts") == ["ft:gpt-4o-mini-tts:acme::def456"]
+
+
+def test_openai_routing_classifies_fine_tuned_models() -> None:
+    """Routing rules see through the ft: prefix."""
+    assert openai_uses_responses_api("ft:gpt-6-luna:acme::x1")
+    assert not openai_supports_no_reasoning("ft:gpt-6-astra:acme::x2")
+
+
+@pytest.mark.parametrize(
+    ("model", "supported"),
+    [
+        ("gpt-6-luna", True),
+        ("gpt-6-sol", True),
+        ("gpt-5.1", True),
+        ("gpt-6.1-sol", False),
+        ("gpt-6.2-sol", False),
+        ("gpt-6-astra", False),
+        ("GPT-6-Astra", False),
+    ],
+)
+def test_openai_supports_no_reasoning(model: str, *, supported: bool) -> None:
+    """Only GPT-6 Astra and GPT-6.1+ Sol reject the "none" effort."""
+    assert openai_supports_no_reasoning(model) is supported
+
+
 def test_filter_openai_models_by_category() -> None:
     """Each category only keeps the model families that can serve it."""
     ids = [
         "gpt-6-luna",
         "gpt-6.1-sol",
         "o4-mini",
+        "codex-mini-latest",
         "gpt-transcribe",
         "gpt-live-transcribe",
         "whisper-1",
@@ -108,7 +148,12 @@ def test_filter_openai_models_by_category() -> None:
         "text-embedding-3-small",
         "omni-moderation-latest",
     ]
-    assert filter_openai_models(ids, "chat") == ["gpt-6-luna", "gpt-6.1-sol", "o4-mini"]
+    assert filter_openai_models(ids, "chat") == [
+        "codex-mini-latest",
+        "gpt-6-luna",
+        "gpt-6.1-sol",
+        "o4-mini",
+    ]
     assert filter_openai_models(ids, "vlm") == filter_openai_models(ids, "chat")
     assert filter_openai_models(ids, "stt") == [
         "gpt-live-transcribe",
