@@ -19,7 +19,9 @@ from custom_components.home_generative_agent.core.utils import (
     filter_openai_models,
     list_openai_models,
     merge_model_options,
+    openai_api_preference,
     openai_uses_responses_api,
+    resolve_openai_api,
 )
 
 
@@ -266,3 +268,85 @@ _WEATHER_TOOL = {
         },
     },
 }
+
+
+@pytest.mark.parametrize(
+    ("provider_type", "category", "model", "preference", "expected"),
+    [
+        ("openai", "chat", "gpt-6-luna", None, "responses"),
+        ("openai", "chat", "gpt-5", None, "chat_completions"),
+        ("openai", "vlm", "gpt-6-luna", None, "chat_completions"),
+        ("openai", "summarization", "gpt-6-luna", "auto", "chat_completions"),
+        ("openai_compatible", "chat", "gpt-6-luna", None, "chat_completions"),
+        ("openai", "chat", "gpt-6-luna", "chat_completions", "chat_completions"),
+        ("openai", "chat", "gpt-5", "responses", "responses"),
+        ("openai_compatible", "vlm", "qwen3-vl", "responses", "responses"),
+        ("openai", "chat", "gpt-5", "bogus", "chat_completions"),
+        # Responses-only models (listed by /v1/models) leave Chat Completions
+        # in every category; OpenAI-compatible servers are left alone.
+        ("openai", "chat", "gpt-5.1-codex", None, "responses"),
+        ("openai", "vlm", "gpt-5-pro", None, "responses"),
+        ("openai", "summarization", "o3-pro-2025-06-10", None, "responses"),
+        ("openai", "chat", "gpt-5.6-sol", None, "responses"),
+        ("openai", "chat", "gpt-4o-mini", None, "chat_completions"),
+        ("openai", "vlm", "gpt-5-pro", "chat_completions", "chat_completions"),
+        ("openai_compatible", "chat", "gpt-5.1-codex", None, "chat_completions"),
+    ],
+)
+def test_resolve_openai_api(
+    provider_type: str,
+    category: str,
+    model: str,
+    preference: str | None,
+    expected: str,
+) -> None:
+    """An explicit choice wins; automatic picks Responses only where needed."""
+    assert (
+        resolve_openai_api(
+            provider_type=provider_type,
+            category=category,
+            model=model,
+            preference=preference,
+        )
+        == expected
+    )
+
+
+def test_openai_api_preference_per_model_wins() -> None:
+    """A remembered per-model choice beats the flat one."""
+    by_model = {"gpt-5": "responses", "gpt-4o": "auto"}
+    assert openai_api_preference("chat_completions", by_model, "gpt-5") == "responses"
+    # Invalid remembered values fall through to the flat choice.
+    assert openai_api_preference("chat_completions", by_model, "gpt-4o") == (
+        "chat_completions"
+    )
+    assert openai_api_preference(None, by_model, "gpt-6-luna") is None
+
+
+def test_openai_api_preference_fallback_ignores_flat() -> None:
+    """Fallback models only use their own remembered choice."""
+    assert (
+        openai_api_preference("responses", None, "gpt-5", default_to_flat=False) is None
+    )
+    assert (
+        openai_api_preference(
+            "chat_completions",
+            {"gpt-5": "responses"},
+            "gpt-5",
+            default_to_flat=False,
+        )
+        == "responses"
+    )
+
+
+def test_responses_only_models_cover_langchain_routing() -> None:
+    """Every name langchain-openai treats as Responses-only routes there here."""
+    from langchain_openai.chat_models import base as lc_base  # noqa: PLC0415
+
+    prefixes = lc_base._RESPONSES_API_ONLY_PREFIXES
+    for name in (*prefixes, "gpt-5.1-codex", "codex-mini-latest"):
+        assert lc_base._model_prefers_responses_api(name)
+        assert (
+            resolve_openai_api(provider_type="openai", category="vlm", model=name)
+            == "responses"
+        ), name

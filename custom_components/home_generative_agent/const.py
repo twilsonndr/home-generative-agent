@@ -452,6 +452,18 @@ CONF_FEATURE_MODEL_REASONING_BUDGET = "reasoning_budget"
 # and forth restores each model's configuration (issue #580):
 # {model_name: {"reasoning": <canonical value>, "budget": <int tokens>}}.
 CONF_FEATURE_MODEL_REASONING_BY_MODEL = "reasoning_by_model"
+# Which OpenAI API a feature model uses (OpenAI and OpenAI-compatible
+# providers only). "auto" picks per model (see resolve_openai_api in
+# core/utils.py); the user can force either API. Remembered per model name like
+# the thinking settings: {model_name: "chat_completions" | "responses"}.
+CONF_FEATURE_MODEL_API = "openai_api"
+CONF_FEATURE_MODEL_API_BY_MODEL = "openai_api_by_model"
+OPENAI_API_AUTO = "auto"
+OPENAI_API_CHAT_COMPLETIONS = "chat_completions"
+OPENAI_API_RESPONSES = "responses"
+# The explicit (stored) choices; Automatic is stored as the absence of one.
+OPENAI_API_EXPLICIT = (OPENAI_API_CHAT_COMPLETIONS, OPENAI_API_RESPONSES)
+OPENAI_API_PROVIDER_TYPES = frozenset({"openai", "openai_compatible"})
 CONF_FEATURE_MODEL_KEEPALIVE = "keepalive_s"
 CONF_FEATURE_MODEL_CONTEXT_SIZE = "context_size"
 
@@ -461,6 +473,17 @@ CONF_FEATURE_MODEL_CONTEXT_SIZE = "context_size"
 CONF_CHAT_REASONING = "chat_reasoning"
 CONF_CHAT_REASONING_BUDGET = "chat_reasoning_budget"
 CONF_CHAT_REASONING_BY_MODEL = "chat_reasoning_by_model"
+
+# ---- OpenAI API selection (resolved runtime options, per category) ----
+# Values: OPENAI_API_CHAT_COMPLETIONS or OPENAI_API_RESPONSES; absent = auto.
+OPENAI_API_OPTION_KEYS: dict[str, tuple[str, str]] = {
+    "chat": ("chat_openai_api", "chat_openai_api_by_model"),
+    "vlm": ("vlm_openai_api", "vlm_openai_api_by_model"),
+    "summarization": (
+        "summarization_openai_api",
+        "summarization_openai_api_by_model",
+    ),
+}
 # Anthropic extended thinking constraints: the API requires
 # budget_tokens >= 1024 and max_tokens > budget_tokens. The budget is capped
 # so budget + response headroom stays under every current model's output

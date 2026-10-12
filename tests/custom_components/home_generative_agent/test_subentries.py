@@ -37,6 +37,8 @@ from custom_components.home_generative_agent.const import (
     CONF_EXPLAIN_ENABLED,
     CONF_FEATURE_FALLBACK_PROVIDER_IDS,
     CONF_FEATURE_MODEL,
+    CONF_FEATURE_MODEL_API,
+    CONF_FEATURE_MODEL_API_BY_MODEL,
     CONF_FEATURE_MODEL_NAME,
     CONF_FEATURE_MODEL_REASONING,
     CONF_FEATURE_MODEL_REASONING_BUDGET,
@@ -91,6 +93,7 @@ from custom_components.home_generative_agent.const import (
     SUBENTRY_TYPE_TTS_PROVIDER,
 )
 from custom_components.home_generative_agent.core.subentry_resolver import (
+    _apply_feature_model_to_options,
     build_model_deployments,
     legacy_model_provider_configs,
     resolve_fallback_chains,
@@ -5121,3 +5124,175 @@ async def test_stt_provider_flow_lists_openai_transcription_models(
     assert "gpt-6-luna" not in values
     assert _select_config(form, "model_name")["custom_value"] is True
     assert _LISTED_MODEL_CALLS == [("sk-shared", None)]
+
+
+# ---------------------------------------------------------------------------
+# Per-model OpenAI API selection (Chat Completions vs Responses)
+# ---------------------------------------------------------------------------
+
+
+def _openai_thinking_entry(
+    feature_model: dict[str, Any] | None = None,
+) -> tuple[DummyEntry, DummySubentry]:
+    entry, feature = _thinking_entry(feature_model)
+    entry.subentries["prov1"].data = {
+        "provider_type": "openai",
+        "capabilities": ["chat"],
+        "settings": {"api_key": "sk-test"},
+    }
+    return entry, feature
+
+
+@pytest.mark.asyncio
+async def test_feature_flow_offers_api_choice_for_openai(hass: HomeAssistant) -> None:
+    """The OpenAI model form has an API select defaulting to Automatic."""
+    entry, feature = _openai_thinking_entry({CONF_FEATURE_MODEL_NAME: "gpt-6-luna"})
+    flow = _thinking_flow(hass, entry, feature)
+
+    await flow.async_step_user()
+    form = await flow.async_step_conversation({"model_provider_id": "prov1"})
+    assert _schema_marker(form, CONF_FEATURE_MODEL_API).default() == "auto"
+    options = _select_config(form, CONF_FEATURE_MODEL_API)["options"]
+    assert [opt["value"] for opt in options] == [
+        "auto",
+        "chat_completions",
+        "responses",
+    ]
+    # Automatic names the API it resolves to for the stored model.
+    assert "Responses API" in options[0]["label"]
+
+
+@pytest.mark.asyncio
+async def test_feature_flow_offers_api_choice_for_openai_compatible(
+    hass: HomeAssistant,
+) -> None:
+    """OpenAI-compatible servers get the choice too, recommending Chat Completions."""
+    entry, feature = _thinking_entry()
+    flow = _thinking_flow(hass, entry, feature)
+
+    await flow.async_step_user()
+    form = await flow.async_step_conversation({"model_provider_id": "prov1"})
+    options = _select_config(form, CONF_FEATURE_MODEL_API)["options"]
+    assert "Chat Completions" in options[0]["label"]
+
+
+@pytest.mark.asyncio
+async def test_feature_flow_hides_api_choice_for_other_providers(
+    hass: HomeAssistant,
+) -> None:
+    """Providers without an OpenAI API have no API select."""
+    entry, feature = _thinking_entry()
+    entry.subentries["prov1"].data = {
+        "provider_type": "gemini",
+        "capabilities": ["chat"],
+        "settings": {"api_key": "g-test"},
+    }
+    flow = _thinking_flow(hass, entry, feature)
+
+    await flow.async_step_user()
+    form = await flow.async_step_conversation({"model_provider_id": "prov1"})
+    assert CONF_FEATURE_MODEL_API not in _schema_keys(form)
+
+
+@pytest.mark.asyncio
+async def test_feature_flow_saves_api_choice_per_model(hass: HomeAssistant) -> None:
+    """An explicit API choice is stored flat and remembered for the model."""
+    entry, feature = _openai_thinking_entry({CONF_FEATURE_MODEL_NAME: "gpt-5"})
+    flow = _thinking_flow(hass, entry, feature)
+
+    await flow.async_step_user()
+    await flow.async_step_conversation({"model_provider_id": "prov1"})
+    result = await flow.async_step_feature_model(
+        {CONF_FEATURE_MODEL_NAME: "gpt-5", CONF_FEATURE_MODEL_API: "responses"}
+    )
+    assert result.get("type") == "abort"
+    model = feature.data[CONF_FEATURE_MODEL]
+    assert model[CONF_FEATURE_MODEL_API] == "responses"
+    assert model[CONF_FEATURE_MODEL_API_BY_MODEL] == {"gpt-5": "responses"}
+
+
+@pytest.mark.asyncio
+async def test_feature_flow_switching_model_restores_api_choice(
+    hass: HomeAssistant,
+) -> None:
+    """Switching models restores the new model's choice, not the on-screen one."""
+    entry, feature = _openai_thinking_entry(
+        {
+            CONF_FEATURE_MODEL_NAME: "gpt-5",
+            CONF_FEATURE_MODEL_API: "responses",
+            CONF_FEATURE_MODEL_API_BY_MODEL: {
+                "gpt-5": "responses",
+                "gpt-6-luna": "chat_completions",
+            },
+        }
+    )
+    flow = _thinking_flow(hass, entry, feature)
+
+    await flow.async_step_user()
+    form = await flow.async_step_conversation({"model_provider_id": "prov1"})
+    assert _schema_marker(form, CONF_FEATURE_MODEL_API).default() == "responses"
+    await flow.async_step_feature_model(
+        {CONF_FEATURE_MODEL_NAME: "gpt-6-luna", CONF_FEATURE_MODEL_API: "responses"}
+    )
+    model = feature.data[CONF_FEATURE_MODEL]
+    assert model[CONF_FEATURE_MODEL_API] == "chat_completions"
+    assert model[CONF_FEATURE_MODEL_API_BY_MODEL] == {
+        "gpt-5": "responses",
+        "gpt-6-luna": "chat_completions",
+    }
+
+
+@pytest.mark.asyncio
+async def test_feature_flow_automatic_clears_remembered_api(
+    hass: HomeAssistant,
+) -> None:
+    """Choosing Automatic again forgets the model's override."""
+    entry, feature = _openai_thinking_entry(
+        {
+            CONF_FEATURE_MODEL_NAME: "gpt-5",
+            CONF_FEATURE_MODEL_API: "responses",
+            CONF_FEATURE_MODEL_API_BY_MODEL: {"gpt-5": "responses"},
+        }
+    )
+    flow = _thinking_flow(hass, entry, feature)
+
+    await flow.async_step_user()
+    await flow.async_step_conversation({"model_provider_id": "prov1"})
+    await flow.async_step_feature_model(
+        {CONF_FEATURE_MODEL_NAME: "gpt-5", CONF_FEATURE_MODEL_API: "auto"}
+    )
+    model = feature.data[CONF_FEATURE_MODEL]
+    assert CONF_FEATURE_MODEL_API not in model
+    assert CONF_FEATURE_MODEL_API_BY_MODEL not in model
+
+
+def test_resolver_copies_explicit_api_choices_only() -> None:
+    """Automatic is the absence of a value in runtime options."""
+    options: dict[str, Any] = {}
+    _apply_feature_model_to_options(
+        options,
+        "vlm",
+        "openai_compatible",
+        {
+            CONF_FEATURE_MODEL_NAME: "qwen3-vl",
+            CONF_FEATURE_MODEL_API: "responses",
+            CONF_FEATURE_MODEL_API_BY_MODEL: {"qwen3-vl": "responses", "x": "auto"},
+        },
+    )
+    assert options["vlm_openai_api"] == "responses"
+    assert options["vlm_openai_api_by_model"] == {"qwen3-vl": "responses"}
+
+    options = {}
+    _apply_feature_model_to_options(
+        options, "chat", "openai", {CONF_FEATURE_MODEL_API: "auto"}
+    )
+    assert "chat_openai_api" not in options
+
+
+def test_resolver_ignores_api_choice_for_other_providers() -> None:
+    """A stale API choice under a non-OpenAI provider is not applied."""
+    options: dict[str, Any] = {}
+    _apply_feature_model_to_options(
+        options, "chat", "gemini", {CONF_FEATURE_MODEL_API: "responses"}
+    )
+    assert "chat_openai_api" not in options
