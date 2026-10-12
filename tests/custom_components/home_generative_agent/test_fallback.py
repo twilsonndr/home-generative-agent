@@ -917,13 +917,13 @@ async def test_fallback_chat_responses_api_text_blocks_do_not_fallback() -> None
     assert fallback.ainvoke.await_count == 0
 
 
-def _gpt6_tools_error() -> Exception:
+def _gpt6_tools_error(model: str = "gpt-6-luna") -> Exception:
     request = httpx.Request("POST", "https://proxy.local/v1/chat/completions")
     response = httpx.Response(400, request=request)
     body = {
         "message": (
             "Function tools with reasoning_effort are not supported for "
-            "gpt-6-luna in /v1/chat/completions. To use function tools, use "
+            f"{model} in /v1/chat/completions. To use function tools, use "
             "/v1/responses or set reasoning_effort to 'none'."
         ),
         "type": "invalid_request_error",
@@ -945,6 +945,46 @@ def test_sampling_param_overrides_sets_none_effort_for_gpt6_tools() -> None:
     assert overrides["reasoning_effort"] == "none"
     assert overrides["temperature"] is None
     assert overrides["top_p"] is None
+
+
+@pytest.mark.parametrize("model", ["gpt-6.1-sol", "gpt-6-astra", "'gpt-6-astra'"])
+def test_gpt6_tools_error_switches_to_responses_without_none_effort(
+    model: str,
+) -> None:
+    """Models that reject "none" retry on the Responses API, keeping the effort."""
+    wrapped = HomeAssistantError("Model invocation failed")
+    wrapped.__cause__ = _gpt6_tools_error(model)
+    assert unsupported_sampling_param_in_chain(wrapped) == "use_responses_api"
+    overrides = sampling_param_overrides(wrapped)
+    assert overrides["use_responses_api"] is True
+    assert "reasoning_effort" not in overrides
+    assert overrides["temperature"] is None
+
+
+@pytest.mark.parametrize("model", ["gpt-6-luna", "gpt-6-sol"])
+def test_gpt6_tools_error_keeps_none_retry_where_supported(model: str) -> None:
+    """GPT-6 Sol and Luna accept "none", so they stay on Chat Completions."""
+    err = _gpt6_tools_error(model)
+    assert unsupported_sampling_param(err) == "reasoning_effort"
+    overrides = sampling_param_overrides(err)
+    assert overrides["reasoning_effort"] == "none"
+    assert "use_responses_api" not in overrides
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_dropping_moves_astra_tools_to_responses() -> None:
+    """The config-merge retry flips the API instead of sending "none"."""
+    model = MagicMock()
+    model.ainvoke = AsyncMock(side_effect=[_gpt6_tools_error("gpt-6-astra"), "ok"])
+
+    result = await ainvoke_dropping_unsupported_params(
+        model, ["hi"], {"configurable": {"reasoning_effort": "high"}}
+    )
+
+    assert result == "ok"
+    retry = model.ainvoke.await_args_list[1].args[1]["configurable"]
+    assert retry["use_responses_api"] is True
+    assert retry["reasoning_effort"] == "high"
 
 
 def test_sampling_param_overrides_nulls_everything_otherwise() -> None:

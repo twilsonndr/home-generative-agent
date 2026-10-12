@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from time import monotonic
 from typing import TYPE_CHECKING, Any, cast
 
@@ -17,6 +18,7 @@ from ..const import (  # noqa: TID252
     HTTP_STATUS_NOT_IMPLEMENTED,
     HTTP_STATUS_WEBPAGE_NOT_FOUND,
 )
+from .openai_models import openai_supports_no_reasoning
 from .prompt_cache import adapt_system_message_for_model
 
 if TYPE_CHECKING:
@@ -63,8 +65,8 @@ DROPPABLE_SAMPLING_PARAMS = frozenset({"temperature", "top_p", "reasoning_effort
 
 # ConfigurableField id that selects the OpenAI API (Chat Completions vs
 # Responses). Never nulled: None hands the choice back to langchain-openai's
-# model-name routing. Only a backend that does not serve /responses flips it,
-# to False.
+# model-name routing. A backend that does not serve /responses flips it to
+# False; a GPT-6 model that can only call tools on /responses flips it to True.
 USE_RESPONSES_API_PARAM = "use_responses_api"
 _RESPONSES_PATH_SUFFIX = "/responses"
 # Statuses that mean the backend has no /responses route at all.
@@ -99,7 +101,11 @@ def unsupported_sampling_param(err: Exception) -> str | None:
     if param in DROPPABLE_SAMPLING_PARAMS and code in _UNSUPPORTED_PARAM_CODES:
         return param
     if _requires_no_reasoning_for_tools(err):
-        return "reasoning_effort"
+        return (
+            "reasoning_effort"
+            if _tools_retry_can_use_no_reasoning(err)
+            else USE_RESPONSES_API_PARAM
+        )
     return None
 
 
@@ -160,6 +166,23 @@ def _requires_no_reasoning_for_tools(err: Exception) -> bool:
     )
 
 
+# "... are not supported for gpt-6-luna in /v1/chat/completions ..."
+_TOOLS_ERROR_MODEL_RE = re.compile(r"not supported for (\S+) in ")
+
+
+def _tools_retry_can_use_no_reasoning(err: Exception) -> bool:
+    """
+    Return True when the GPT-6 tools 400 can be retried with effort "none".
+
+    The message offers two fixes: /v1/responses, or reasoning_effort "none".
+    GPT-6 Astra and GPT-6.1 Sol reject "none", so for them only the Responses
+    API works. The model is read from the message; an unnamed model keeps the
+    "none" retry, which is what the message suggests on Chat Completions.
+    """
+    match = _TOOLS_ERROR_MODEL_RE.search(str(getattr(err, "message", "") or err))
+    return match is None or openai_supports_no_reasoning(match.group(1).strip("'\"`"))
+
+
 def sampling_param_overrides(err: BaseException, max_depth: int = 10) -> dict[str, Any]:
     """
     Return the configurable overrides for a retry after a sampling-param 400.
@@ -167,7 +190,9 @@ def sampling_param_overrides(err: BaseException, max_depth: int = 10) -> dict[st
     Every droppable param is nulled (omitted from the request), except that the
     GPT-6 tools rejection needs an explicit reasoning_effort "none": omitting it
     leaves the model's own default effort, which is rejected the same way. A
-    Responses API call the backend does not serve retries on Chat Completions.
+    model without "none" (GPT-6 Astra, GPT-6.1 Sol) moves to the Responses API
+    instead. A Responses API call the backend does not serve retries on Chat
+    Completions.
     Both checks run on every error in the chain: one error can match both
     (the GPT-6 tools message names /v1/responses), and unsupported_sampling_param
     may have reported either one, so each must leave its override behind.
@@ -179,7 +204,13 @@ def sampling_param_overrides(err: BaseException, max_depth: int = 10) -> dict[st
             break
         if isinstance(current, Exception):
             if _requires_no_reasoning_for_tools(current):
-                overrides["reasoning_effort"] = "none"
+                if _tools_retry_can_use_no_reasoning(current):
+                    overrides["reasoning_effort"] = "none"
+                else:
+                    overrides[USE_RESPONSES_API_PARAM] = True
+                    # Responses takes tools with any effort: keep the
+                    # configured one rather than the model's default.
+                    overrides.pop("reasoning_effort", None)
             if _responses_api_unsupported(current):
                 overrides[USE_RESPONSES_API_PARAM] = False
         current = current.__cause__

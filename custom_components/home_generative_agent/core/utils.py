@@ -47,6 +47,7 @@ from .fallback import (
     ainvoke_dropping_unsupported_params,
     invoke_dropping_unsupported_params,
 )
+from .openai_models import openai_base_model, openai_supports_no_reasoning
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -838,7 +839,9 @@ _OPENAI_CATEGORY_FILTERS["summarization"] = _OPENAI_CATEGORY_FILTERS["chat"]
 def filter_openai_models(model_ids: Iterable[str], category: str) -> list[str]:
     """Keep the OpenAI model ids that can serve ``category``, sorted."""
     keep = _OPENAI_CATEGORY_FILTERS.get(category)
-    return sorted(m for m in set(model_ids) if keep is None or keep(m.lower()))
+    return sorted(
+        m for m in set(model_ids) if keep is None or keep(openai_base_model(m))
+    )
 
 
 def merge_model_options(preferred: Iterable[str], listed: Iterable[str]) -> list[str]:
@@ -1259,10 +1262,14 @@ _OPENAI_EFFORT_LEVELS = _EFFORT_LEVELS | {"none", "xhigh", "max"}
 
 
 def _thinking_openai(
-    _reasoning: Any, effort: str | None, _budget: int | None, _model: str
+    _reasoning: Any, effort: str | None, _budget: int | None, model: str
 ) -> dict[str, Any]:
     # Cloud OpenAI reasoning models cannot disable thinking; only known effort
     # levels are meaningful. On/Off and free-form strings are not sent.
+    if effort == "none" and not openai_supports_no_reasoning(model):
+        # OpenAI's guidance for models without "none": use "low". Dropping the
+        # field instead would restore the model's default (medium) effort.
+        effort = "low"
     return {"reasoning_effort": effort} if effort in _OPENAI_EFFORT_LEVELS else {}
 
 
@@ -1375,7 +1382,7 @@ def openai_uses_responses_api(model: Any) -> bool:
     reasoning_effort to 'none'"), and the agent always binds tools. Every other
     model stays on Chat Completions, the path this integration is tested on.
     """
-    return str(model or "").lower().startswith("gpt-6")
+    return openai_base_model(model).startswith("gpt-6")
 
 
 # OpenAI models served only on /v1/responses (Chat Completions answers 404 for
@@ -1387,7 +1394,7 @@ _OPENAI_RESPONSES_ONLY_RE = re.compile(r"codex|(?:^|-)pro(?:-|$)|^gpt-5\.6-sol")
 
 def openai_requires_responses_api(model: Any) -> bool:
     """Return True for OpenAI models that exist only on the Responses API."""
-    return bool(_OPENAI_RESPONSES_ONLY_RE.search(str(model or "").lower()))
+    return bool(_OPENAI_RESPONSES_ONLY_RE.search(openai_base_model(model)))
 
 
 def openai_api_preference(
