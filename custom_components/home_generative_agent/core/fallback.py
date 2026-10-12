@@ -55,16 +55,69 @@ DROPPABLE_SAMPLING_PARAMS = frozenset({"temperature", "top_p", "reasoning_effort
 
 _UNSUPPORTED_PARAM_CODES = frozenset({"unsupported_value", "unsupported_parameter"})
 
+# The Responses API reports nested request fields by dotted path; map them back
+# to the ConfigurableField id the retry nulls.
+_PARAM_ALIASES = {
+    "reasoning.effort": "reasoning_effort",
+    "reasoning": "reasoning_effort",
+}
+
 
 def unsupported_sampling_param(err: Exception) -> str | None:
     """Return the droppable sampling param an OpenAI 400 rejected, if any."""
     if OpenAIBadRequestError is None or not isinstance(err, OpenAIBadRequestError):
         return None
     param = getattr(err, "param", None)
+    param = _PARAM_ALIASES.get(param, param) if isinstance(param, str) else param
     code = getattr(err, "code", None)
     if param in DROPPABLE_SAMPLING_PARAMS and code in _UNSUPPORTED_PARAM_CODES:
         return param
+    if _requires_no_reasoning_for_tools(err):
+        return "reasoning_effort"
     return None
+
+
+def _requires_no_reasoning_for_tools(err: Exception) -> bool:
+    """
+    Return True for the GPT-6 Chat Completions tools-with-reasoning 400.
+
+    GPT-6-family models on /v1/chat/completions reject function tools with
+    any reasoning_effort other than "none" ("Function tools with
+    reasoning_effort are not supported for gpt-6-luna in /v1/chat/completions
+    ... set reasoning_effort to 'none'"), without a stable error code. Only
+    OpenAI-compatible proxies that expose Chat Completions hit it; the native
+    OpenAI provider uses the Responses API.
+    """
+    if OpenAIBadRequestError is None or not isinstance(err, OpenAIBadRequestError):
+        return False
+    param = getattr(err, "param", None)
+    message = str(getattr(err, "message", "") or err).lower()
+    return (
+        "function tools" in message
+        and "reasoning_effort" in message
+        and "not supported" in message
+        and param in (None, "reasoning_effort", "tools")
+    )
+
+
+def sampling_param_overrides(err: BaseException, max_depth: int = 10) -> dict[str, Any]:
+    """
+    Return the configurable overrides for a retry after a sampling-param 400.
+
+    Every droppable param is nulled (omitted from the request), except that the
+    GPT-6 tools rejection needs an explicit reasoning_effort "none": omitting it
+    leaves the model's own default effort, which is rejected the same way.
+    """
+    overrides: dict[str, Any] = dict.fromkeys(DROPPABLE_SAMPLING_PARAMS)
+    current: BaseException | None = err
+    for _ in range(max_depth):
+        if current is None:
+            break
+        if isinstance(current, Exception) and _requires_no_reasoning_for_tools(current):
+            overrides["reasoning_effort"] = "none"
+            break
+        current = current.__cause__
+    return overrides
 
 
 def _config_dropping(config: Any, dropped: dict[str, Any]) -> Any:
@@ -95,7 +148,7 @@ def _record_dropped_param(err: Exception, dropped: dict[str, Any]) -> None:
     param = unsupported_sampling_param(err)
     if param is None or param in dropped:
         raise err
-    dropped[param] = None
+    dropped[param] = sampling_param_overrides(err)[param]
     LOGGER.warning(
         "Model rejected unsupported parameter %r (%s); retrying without it. "
         "Configure the model's %s to its supported default to avoid this retry.",
@@ -217,10 +270,30 @@ def _merge_model_config(model: Any, config: dict[str, Any] | None) -> dict[str, 
     return _merge_config(existing if isinstance(existing, dict) else None, config)
 
 
+def _has_text(content: Any) -> bool:
+    """
+    Return True when message content carries any visible text.
+
+    Content-block lists (Anthropic, OpenAI Responses API) can hold only
+    reasoning/thinking blocks when the output budget ran out mid-reasoning;
+    such a list is truthy but has nothing to show.
+    """
+    if not isinstance(content, list):
+        return bool(content)
+    return any(
+        (isinstance(part, str) and part)
+        or (
+            isinstance(part, dict)
+            and isinstance(part.get("text"), str)
+            and part["text"]
+        )
+        for part in content
+    )
+
+
 def _retryable_empty_response(result: Any) -> HomeAssistantError | None:
     """Return retryable error when a model hit length limit with empty content."""
-    content = getattr(result, "content", None)
-    if content:
+    if _has_text(getattr(result, "content", None)):
         return None
     if getattr(result, "tool_calls", None):
         return None
@@ -230,7 +303,12 @@ def _retryable_empty_response(result: Any) -> HomeAssistantError | None:
         return None
     metadata = cast("dict[str, Any]", metadata_raw)
     finish_reason = metadata.get("finish_reason") or metadata.get("done_reason")
-    if str(finish_reason).lower() not in {"length", "max_tokens"}:
+    # The OpenAI Responses API reports truncation as status "incomplete" with
+    # incomplete_details.reason instead of a finish_reason.
+    incomplete = metadata.get("incomplete_details")
+    if not finish_reason and isinstance(incomplete, dict):
+        finish_reason = incomplete.get("reason")
+    if str(finish_reason).lower() not in {"length", "max_tokens", "max_output_tokens"}:
         return None
 
     model_name = metadata.get("model_name") or metadata.get("model")
@@ -408,7 +486,7 @@ class FallbackChatModel:
 
         def _rebuild() -> Any:
             stripped = src_model.with_config(
-                config={"configurable": dict.fromkeys(DROPPABLE_SAMPLING_PARAMS)}
+                config={"configurable": sampling_param_overrides(err)}
             )
             return stripped.bind_tools(tools, **tool_kwargs)
 
