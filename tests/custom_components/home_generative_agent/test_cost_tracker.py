@@ -407,8 +407,9 @@ async def test_record_cap_limits_projection_span(
     for age in (3, 2, 1):
         tracker.async_record(_record(now - age * ct.DAY_S, 1.0))
     week = tracker.summary(now)["week"]
-    assert week["covered_days"] == pytest.approx(2.0)
-    assert week["projected_monthly_usd"] == pytest.approx(2.0 / 2 * ct.DAYS_PER_MONTH)
+    # The 3-day-old call was dropped; the kept ones cover everything after it.
+    assert week["covered_days"] == pytest.approx(3.0)
+    assert week["projected_monthly_usd"] == pytest.approx(2.0 / 3 * ct.DAYS_PER_MONTH)
 
 
 @pytest.mark.asyncio
@@ -672,3 +673,46 @@ async def test_callback_ignores_absurd_reported_usage(hass: HomeAssistant) -> No
     last = tracker.summary()["last_call"]
     assert last["input_tokens"] == 0
     assert last["output_tokens"] == 5
+    # Unpriced, not priced as if the input were free.
+    assert last["cost"] is None
+
+
+def test_price_too_large_for_cost_math_is_rejected() -> None:
+    """A finite but absurd price could overflow a cost to infinity."""
+    with pytest.raises(ValueError, match="non-negative"):
+        parse_model_prices('{"x": [1e308, 1]}')
+    assert parse_model_prices('{"x": [1000000, 1]}') == {
+        "x": ModelPrice(1_000_000.0, 1.0)
+    }
+
+
+@pytest.mark.asyncio
+async def test_full_record_cap_without_eviction_keeps_tracked_span(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reaching the cap exactly drops nothing, so projections use all tracked time."""
+    monkeypatch.setattr(ct, "MAX_RECORDS", 2)
+    tracker = _tracker(hass)
+    now = time.time()
+    tracker._started = now - 6 * ct.DAY_S
+    for age in (2, 1):
+        tracker.async_record(_record(now - age * ct.DAY_S, 1.0))
+    week = tracker.summary(now)["week"]
+    assert week["covered_days"] == pytest.approx(6.0)
+
+
+@pytest.mark.asyncio
+async def test_record_cap_gap_survives_reload(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The dropped-call marker is saved, so projections stay right after a restart."""
+    monkeypatch.setattr(ct, "MAX_RECORDS", 2)
+    tracker = _tracker(hass)
+    now = time.time()
+    tracker._started = now - 6 * ct.DAY_S
+    for age in (3, 2, 1):
+        tracker.async_record(_record(now - age * ct.DAY_S, 1.0))
+    await tracker.async_flush()
+    reloaded = _tracker(hass)
+    await reloaded.async_load()
+    assert reloaded.summary(now)["week"]["covered_days"] == pytest.approx(3.0)

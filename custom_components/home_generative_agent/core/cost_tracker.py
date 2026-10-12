@@ -63,6 +63,9 @@ TOKENS_PER_PRICE_UNIT = 1_000_000
 # Largest token count accepted for one call. Far above any real request, and
 # small enough that cost arithmetic can never overflow a float.
 MAX_TOKEN_COUNT = 10**12
+# Highest accepted price, USD per 1M tokens. Far above any real model, and low
+# enough that MAX_TOKEN_COUNT tokens on every kept record stays finite.
+MAX_PRICE = 1_000_000.0
 # Shortest span a projection scales from (see _window_summary).
 MIN_PROJECTION_SPAN_S = 3600.0
 # Per-call records kept at most; at a call a minute this is about two weeks.
@@ -201,8 +204,8 @@ def _parse_price(model: str, raw: Any) -> ModelPrice:
 
 
 def _valid_price(value: Any) -> bool:
-    """Return True for a finite, non-negative number (JSON allows NaN/Infinity)."""
-    return _is_number(value) and value >= 0
+    """Return True for a non-negative number no larger than MAX_PRICE."""
+    return _is_number(value) and 0 <= value <= MAX_PRICE
 
 
 def price_for(
@@ -423,6 +426,9 @@ class UsageCostTracker:
         self._overrides = dict(price_overrides or {})
         self._records: deque[UsageRecord] = deque(maxlen=MAX_RECORDS)
         self._started: float = time.time()
+        # Timestamp of the newest call the record cap dropped, while it is
+        # still inside the retention window: projections start after it.
+        self._evicted_until: float | None = None
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, STORAGE_KEY, private=True
         )
@@ -441,6 +447,9 @@ class UsageCostTracker:
         started = data.get("started")
         if _is_number(started):
             self._started = float(started)
+        evicted_until = data.get("evicted_until")
+        if _is_number(evicted_until):
+            self._evicted_until = float(evicted_until)
         records = data.get("records")
         if not isinstance(records, list):
             return
@@ -448,13 +457,22 @@ class UsageCostTracker:
         for raw in records:
             rec = _record_from_dict(raw)
             if rec is not None and rec.ts >= cutoff:
-                self._records.append(rec)
+                self._append(rec)
+        self._prune()
 
     def _data_to_save(self) -> dict[str, Any]:
         return {
             "started": self._started,
+            "evicted_until": self._evicted_until,
             "records": [_record_to_dict(rec) for rec in self._records],
         }
+
+    def _append(self, record: UsageRecord) -> None:
+        """Keep one record, noting the call the record cap drops, if any."""
+        if self._records and len(self._records) == self._records.maxlen:
+            dropped = self._records[0].ts
+            self._evicted_until = max(self._evicted_until or dropped, dropped)
+        self._records.append(record)
 
     async def async_flush(self) -> None:
         """
@@ -493,6 +511,10 @@ class UsageCostTracker:
         while self._records and self._records[0].ts < cutoff:
             self._records.popleft()
             pruned = True
+        if self._evicted_until is not None and self._evicted_until < cutoff:
+            # The dropped calls are past retention anyway: no gap remains.
+            self._evicted_until = None
+            pruned = True
         return pruned
 
     def price_for(self, model: Any, provider_type: str | None) -> ModelPrice | None:
@@ -517,7 +539,7 @@ class UsageCostTracker:
         """Store one call; must run on the event loop."""
         if self._closed:
             return
-        self._records.append(record)
+        self._append(record)
         self._prune()
         self._store.async_delay_save(self._data_to_save, SAVE_DELAY_S)
         self._async_notify()
@@ -533,10 +555,11 @@ class UsageCostTracker:
         """Return the last call plus 24-hour and 7-day windows."""
         now = time.time() if now is None else now
         tracked_s = max(0.0, now - self._started)
-        if self._records and len(self._records) == self._records.maxlen:
+        if self._evicted_until is not None:
             # The record cap dropped calls inside the windows: project only
-            # over the time the kept records cover.
-            tracked_s = min(tracked_s, max(0.0, now - self._records[0].ts))
+            # over the time after the newest dropped call, which the kept
+            # records fully cover.
+            tracked_s = min(tracked_s, max(0.0, now - self._evicted_until))
         last = self._records[-1] if self._records else None
         return {
             "last_call": None
@@ -637,9 +660,15 @@ class UsageCostCallback(BaseCallbackHandler):
         meta = getattr(message, "response_metadata", None) or {}
         model = meta.get("model_name") or meta.get("model") or run["model"]
         details = usage.get("input_token_details") or {}
-        input_tokens = _int(usage.get("input_tokens"))
-        cached = _int(details.get("cache_read"))
-        output_tokens = _int(usage.get("output_tokens"))
+        counts = (
+            usage.get("input_tokens"),
+            details.get("cache_read"),
+            usage.get("output_tokens"),
+        )
+        input_tokens, cached, output_tokens = (_int(c) for c in counts)
+        # A count the provider sent but that is not a plausible token count
+        # makes the call unpriced rather than cheaper than it was.
+        usage_valid = all(c is None or _is_count(c) for c in counts)
         self._tracker.record_threadsafe(
             UsageRecord(
                 ts=time.time(),
@@ -650,7 +679,7 @@ class UsageCostCallback(BaseCallbackHandler):
                 input_tokens=input_tokens,
                 cached_tokens=cached,
                 output_tokens=output_tokens,
-                usage_reported=bool(usage),
+                usage_reported=bool(usage) and usage_valid,
             )
         )
 
