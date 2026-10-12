@@ -781,3 +781,19 @@ async def test_removing_the_entry_deletes_the_usage_store(hass: HomeAssistant) -
     fresh = _tracker(hass)
     await fresh.async_load()
     assert len(fresh._records) == 0
+
+
+def test_unknown_price_fields_are_rejected() -> None:
+    """A misspelled field fails the form instead of silently mispricing."""
+    with pytest.raises(ValueError, match="cachedInput"):
+        parse_model_prices('{"x": {"input": 1, "output": 2, "cachedInput": 0.1}}')
+    with pytest.raises(ValueError, match="cachedInput"):
+        parse_model_prices(
+            '{"openai_compatible": {"x": {"input": 1, "output": 2, "cachedInput": 0}}}'
+        )
+    assert (
+        _model_prices_error(
+            {CONF_MODEL_PRICES: '{"x": {"input": 1, "output": 2, "cachedInput": 0}}'}
+        )
+        == "invalid_model_prices"
+    )

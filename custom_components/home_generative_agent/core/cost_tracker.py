@@ -187,6 +187,15 @@ def parse_model_prices(text: Any) -> dict[str, ModelPrice]:
 
 def _parse_price(model: str, raw: Any) -> ModelPrice:
     if isinstance(raw, dict):
+        unknown = sorted(str(key) for key in raw if key not in _PRICE_FIELDS)
+        if unknown:
+            # A typo such as "cachedInput" would otherwise be ignored and
+            # bill cache reads at the input rate.
+            msg = (
+                f"price for {model!r} has unknown field(s) {', '.join(unknown)}; "
+                "use input, output and cached_input"
+            )
+            raise ValueError(msg)
         values = (raw.get("input"), raw.get("output"), raw.get("cached_input"))
     elif isinstance(raw, list) and len(raw) in (2, 3):
         values = (raw[0], raw[1], raw[2] if len(raw) == 3 else None)  # noqa: PLR2004
