@@ -627,15 +627,23 @@ async def test_breakdown_separates_providers_of_the_same_model(
     hass: HomeAssistant,
 ) -> None:
     """An unpriced proxy call does not hide the priced OpenAI subtotal."""
-    tracker = UsageCostTracker(hass, {"gpt-5": ModelPrice(1.0, 0.0)})
+    # Priced for first-party OpenAI only; the compatible proxy stays unpriced.
+    tracker = UsageCostTracker(
+        hass, parse_model_prices('{"openai": {"gpt-5": [1, 0]}}')
+    )
     now = time.time()
     tracker._started = now - ct.DAY_S
     tracker.async_record(_record(now - 60, 0.5))  # openai, priced
     tracker.async_record(_record(now - 30, 0.25, provider="openai_compatible"))
-    by_model = tracker.summary(now)["day"]["by_model"]
+    day = tracker.summary(now)["day"]
+    by_model = day["by_model"]
     assert by_model["gpt-5 (responses, openai)"]["cost_usd"] == pytest.approx(0.5)
-    # Plain entries price compatible servers too; scope one to change that.
-    assert by_model["gpt-5 (responses, openai_compatible)"]["calls"] == 1
+    proxy = by_model["gpt-5 (responses, openai_compatible)"]
+    assert proxy["calls"] == 1
+    assert proxy["cost_usd"] is None
+    # The window total still reconciles with the priced bucket.
+    assert day["cost_usd"] == pytest.approx(0.5)
+    assert day["unpriced_calls"] == 1
 
 
 @pytest.mark.parametrize("bad", [10**400, -5, ct.MAX_TOKEN_COUNT + 1])
