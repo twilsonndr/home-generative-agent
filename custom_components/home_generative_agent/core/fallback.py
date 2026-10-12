@@ -599,6 +599,13 @@ class FallbackChatModel:
         bound._rebind_sources = rebind_sources
         return bound
 
+    def _has_rebind_source(self, index: int) -> bool:
+        """Return True when member ``index`` is tool-bound with a rebind source."""
+        return (
+            index < len(self._rebind_sources)
+            and self._rebind_sources[index] is not None
+        )
+
     async def _retry_with_default_sampling(
         self,
         index: int,
@@ -686,15 +693,19 @@ class FallbackChatModel:
             ):
                 LOGGER.debug("Provider %s is circuit-broken; skipping.", provider_id)
                 continue
+            # Members can be different providers; shape the system message
+            # for the one actually being called.
+            member_input = adapt_system_message_for_model(model, input_data)
             try:
-                result = await ainvoke_dropping_unsupported_params(
-                    # Members can be different providers; shape the system
-                    # message for the one actually being called.
-                    model,
-                    adapt_system_message_for_model(model, input_data),
-                    config,
-                    **kwargs,
-                )
+                if self._has_rebind_source(i):
+                    # bind_tools baked the sampling params in, so a config-merge
+                    # retry would resend the same failing request; the rebind
+                    # in the except branch is this member's only retry.
+                    result = await model.ainvoke(member_input, config, **kwargs)
+                else:
+                    result = await ainvoke_dropping_unsupported_params(
+                        model, member_input, config, **kwargs
+                    )
                 _raise_for_retryable_empty_response(result)
             except Exception as err:
                 rebind_result = await self._retry_with_default_sampling(

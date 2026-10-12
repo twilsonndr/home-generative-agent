@@ -811,7 +811,7 @@ async def test_fallback_chat_tool_bound_rebinds_same_provider() -> None:
     from its pre-bind source with default sampling and retry it in place.
     """
     bound_p1 = AsyncMock()
-    bound_p1.ainvoke.side_effect = [_bad_request_error(), _bad_request_error()]
+    bound_p1.ainvoke.side_effect = [_bad_request_error()]
     rebound_p1 = AsyncMock()
     rebound_p1.ainvoke.return_value = FakeAIMessage("rebound")
     stripped_p1 = MagicMock()
@@ -834,6 +834,10 @@ async def test_fallback_chat_tool_bound_rebinds_same_provider() -> None:
     result = await bound.ainvoke(["hello"])
 
     assert result.content == "rebound"
+    # One failed request, then the rebind: no config-merge retry that would
+    # resend the same baked-in params.
+    assert bound_p1.ainvoke.await_count == 1
+    assert rebound_p1.ainvoke.await_count == 1
     # p1 was retried in place with default sampling; p2 never entered.
     bound_p2.ainvoke.assert_not_awaited()
     strip_config = src_p1.with_config.call_args.kwargs["config"]
@@ -846,7 +850,7 @@ async def test_fallback_chat_tool_bound_rebinds_same_provider() -> None:
 async def test_fallback_chat_rebind_failure_still_falls_over() -> None:
     """When the rebound provider also fails, normal provider fallback proceeds."""
     bound_p1 = AsyncMock()
-    bound_p1.ainvoke.side_effect = [_bad_request_error(), _bad_request_error()]
+    bound_p1.ainvoke.side_effect = [_bad_request_error()]
     rebound_p1 = AsyncMock()
     rebound_p1.ainvoke.side_effect = HomeAssistantError("still down")
     stripped_p1 = MagicMock()
