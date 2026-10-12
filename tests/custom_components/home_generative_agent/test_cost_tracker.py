@@ -7,12 +7,15 @@ import asyncio
 import threading
 import time
 from typing import TYPE_CHECKING, Any
+from unittest.mock import patch
 
 import pytest
+from homeassistant.util import dt as dt_util
 from langchain_core.language_models.fake_chat_models import (
     FakeMessagesListChatModel,
 )
 from langchain_core.messages import AIMessage
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.home_generative_agent.config_flow import _model_prices_error
 from custom_components.home_generative_agent.const import CONF_MODEL_PRICES
@@ -511,3 +514,69 @@ async def test_load_skips_records_with_bad_field_types(hass: HomeAssistant) -> N
     await reloaded.async_load()
     assert len(reloaded._records) == 1
     assert reloaded.summary(now)["day"]["cost_usd"] == pytest.approx(1.0)
+
+
+def test_provider_scoped_price_wins_for_that_provider_only() -> None:
+    """A price nested under a provider type leaves other providers alone."""
+    overrides = parse_model_prices(
+        '{"openai_compatible": {"gpt-5": [0.5, 2.0]}, "my-model": [1, 2]}'
+    )
+    assert price_for("gpt-5", "openai_compatible", overrides) == ModelPrice(0.5, 2.0)
+    # First-party OpenAI keeps its built-in price.
+    assert price_for("gpt-5", "openai", overrides) == ct.BUILTIN_PRICES["gpt-5"]
+    # Plain entries still apply to every non-local provider.
+    assert price_for("my-model", "openai_compatible", overrides) == ModelPrice(1, 2)
+
+
+def test_plain_price_does_not_make_ollama_paid() -> None:
+    """Ollama stays free unless priced under its own provider type."""
+    plain = parse_model_prices('{"gpt-oss": [1, 2]}')
+    assert price_for("gpt-oss", "ollama", plain) == ModelPrice(0.0, 0.0, 0.0)
+    scoped = parse_model_prices('{"ollama": {"gpt-oss": [0.1, 0.2]}}')
+    assert price_for("gpt-oss", "ollama", scoped) == ModelPrice(0.1, 0.2)
+
+
+def test_provider_key_with_price_fields_is_a_model_entry() -> None:
+    """A provider-named key holding a price object is read as a model price."""
+    prices = parse_model_prices('{"openai": {"input": 1, "output": 2}}')
+    assert prices == {"openai": ModelPrice(1.0, 2.0)}
+
+
+def test_invalid_scoped_price_names_provider_and_model() -> None:
+    """Errors inside a provider block say which entry is wrong."""
+    with pytest.raises(ValueError, match="openai_compatible/gpt-5"):
+        parse_model_prices('{"openai_compatible": {"gpt-5": [1]}}')
+
+
+@pytest.mark.asyncio
+async def test_periodic_tick_prunes_and_saves_expired_records(
+    hass: HomeAssistant,
+) -> None:
+    """With no new calls, the refresh tick still expires old records."""
+    tracker = _tracker(hass)
+    now = time.time()
+    tracker._records.append(_record(now - 8 * ct.DAY_S, 1.0))
+    tracker._records.append(_record(now - 60, 0.5))
+    with patch.object(tracker._store, "async_delay_save") as delay_save:
+        unsub = tracker.async_start_refresh()
+        async_fire_time_changed(hass, dt_util.utcnow() + ct.REFRESH_INTERVAL)
+        await hass.async_block_till_done()
+        unsub()
+    assert len(tracker._records) == 1
+    delay_save.assert_called_once()
+    assert tracker.summary()["last_call"]["cost"] == pytest.approx(0.5)
+
+
+@pytest.mark.asyncio
+async def test_periodic_tick_without_expired_records_does_not_save(
+    hass: HomeAssistant,
+) -> None:
+    """A tick that removes nothing does not rewrite the store."""
+    tracker = _tracker(hass)
+    tracker._records.append(_record(time.time() - 60, 0.5))
+    with patch.object(tracker._store, "async_delay_save") as delay_save:
+        unsub = tracker.async_start_refresh()
+        async_fire_time_changed(hass, dt_util.utcnow() + ct.REFRESH_INTERVAL)
+        await hass.async_block_till_done()
+        unsub()
+    delay_save.assert_not_called()

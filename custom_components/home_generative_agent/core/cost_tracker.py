@@ -109,6 +109,11 @@ FREE_PROVIDER_TYPES = frozenset({"ollama"})
 # from the user's table.
 UNPRICED_BY_DEFAULT_PROVIDER_TYPES = frozenset({"openai_compatible"})
 OPENAI_PROVIDER_TYPES = frozenset({"openai", "openai_compatible"})
+# Provider types a price table can scope entries to (see parse_model_prices).
+PRICE_SCOPE_PROVIDER_TYPES = frozenset(
+    {"openai", "openai_compatible", "ollama", "gemini", "anthropic"}
+)
+_PRICE_FIELDS = frozenset({"input", "output", "cached_input"})
 
 _DATE_SUFFIX_RE = re.compile(r"(?:-\d{4}-\d{2}-\d{2}|-\d{8}|@\d{8})$")
 
@@ -121,13 +126,32 @@ def normalize_model_name(model: Any) -> str:
     return _DATE_SUFFIX_RE.sub("", name)
 
 
+def scoped_price_key(provider_type: str, model: Any) -> str:
+    """Return the price-table key for a model priced for one provider type."""
+    # A unit separator cannot appear in a normalized model name, so a scoped
+    # key never collides with a model-only one.
+    return f"{provider_type}\x1f{normalize_model_name(model)}"
+
+
+def _is_provider_scope(key: str, raw: Any) -> bool:
+    """Return True for a provider-type key whose value maps models to prices."""
+    return (
+        key in PRICE_SCOPE_PROVIDER_TYPES
+        and isinstance(raw, dict)
+        and not _PRICE_FIELDS.intersection(raw)
+    )
+
+
 def parse_model_prices(text: Any) -> dict[str, ModelPrice]:
     """
     Parse the user's price table: a JSON object of model -> price.
 
     Each price is either ``{"input": .., "output": .., "cached_input": ..}``
     or a list ``[input, output]`` / ``[input, output, cached_input]``, in USD
-    per 1M tokens. Raises ValueError with a short reason when invalid.
+    per 1M tokens. A provider-type key (``"openai_compatible"``, ``"ollama"``,
+    ...) holding its own model -> price object prices those models for that
+    provider only, ahead of any model-only entry. Raises ValueError with a
+    short reason when invalid.
     """
     if text is None or (isinstance(text, str) and not text.strip()):
         return {}
@@ -136,8 +160,15 @@ def parse_model_prices(text: Any) -> dict[str, ModelPrice]:
         msg = "expected a JSON object of model -> price"
         raise ValueError(msg)  # noqa: TRY004 — surfaced as a form error
     prices: dict[str, ModelPrice] = {}
-    for model, raw in data.items():
-        prices[normalize_model_name(model)] = _parse_price(str(model), raw)
+    for key, raw in data.items():
+        if _is_provider_scope(str(key), raw):
+            for model, scoped_raw in raw.items():
+                label = f"{key}/{model}"
+                prices[scoped_price_key(str(key), model)] = _parse_price(
+                    label, scoped_raw
+                )
+            continue
+        prices[normalize_model_name(key)] = _parse_price(str(key), raw)
     return prices
 
 
@@ -179,12 +210,23 @@ def price_for(
     provider_type: str | None,
     overrides: Mapping[str, ModelPrice] | None = None,
 ) -> ModelPrice | None:
-    """Return the price for a model: user override, then built-in, else None."""
+    """
+    Return the price for a model, or None when unknown.
+
+    Order: the user's price for this provider type, then local providers are
+    free, then the user's model-only price, then the built-in table (not used
+    for OpenAI-compatible servers, which may bill anything).
+    """
     name = normalize_model_name(model)
-    if overrides and name in overrides:
-        return overrides[name]
+    overrides = overrides or {}
+    if provider_type:
+        scoped = overrides.get(scoped_price_key(provider_type, name))
+        if scoped is not None:
+            return scoped
     if provider_type in FREE_PROVIDER_TYPES:
         return ModelPrice(0.0, 0.0, 0.0)
+    if name in overrides:
+        return overrides[name]
     if provider_type in UNPRICED_BY_DEFAULT_PROVIDER_TYPES:
         return None
     return BUILTIN_PRICES.get(name)
@@ -421,6 +463,10 @@ class UsageCostTracker:
 
         @callback
         def _tick(_now: datetime) -> None:
+            # Expire old calls even when no new ones arrive, so the windows,
+            # the last-call sensor and the stored file honor the retention.
+            if self._prune() and not self._closed:
+                self._store.async_delay_save(self._data_to_save, SAVE_DELAY_S)
             self._async_notify()
 
         return async_track_time_interval(self.hass, _tick, REFRESH_INTERVAL)
@@ -429,6 +475,15 @@ class UsageCostTracker:
     def _async_notify(self) -> None:
         """Send one summary to every cost sensor."""
         async_dispatcher_send(self.hass, SIGNAL_USAGE_COST_UPDATED, self.summary())
+
+    def _prune(self) -> bool:
+        """Drop records past the retention window; return True if any went."""
+        cutoff = time.time() - RETENTION_S
+        pruned = False
+        while self._records and self._records[0].ts < cutoff:
+            self._records.popleft()
+            pruned = True
+        return pruned
 
     def price_for(self, model: Any, provider_type: str | None) -> ModelPrice | None:
         """Return the price used for a model."""
@@ -453,9 +508,7 @@ class UsageCostTracker:
         if self._closed:
             return
         self._records.append(record)
-        cutoff = time.time() - RETENTION_S
-        while self._records and self._records[0].ts < cutoff:
-            self._records.popleft()
+        self._prune()
         self._store.async_delay_save(self._data_to_save, SAVE_DELAY_S)
         self._async_notify()
 

@@ -202,11 +202,16 @@ Add or correct prices in the integration's **Options** (gear icon) under **Model
 {
   "gpt-6-luna": [0.1, 0.5, 0.01],
   "gpt-6.1-sol": {"input": 2.0, "output": 10.0, "cached_input": 0.2},
-  "my-llama-model": [0, 0]
+  "my-llama-model": [0, 0],
+  "openai_compatible": {
+    "gpt-5": [0.5, 2.0]
+  }
 }
 ```
 
-Each entry is `[input, output]`, `[input, output, cached_input]`, or an object with those keys. Cached input tokens (prompt-cache reads) bill at `cached_input`, or at `input` when it is not given. Model names match case-insensitively, and dated snapshots (`gpt-5-2025-08-07`, `claude-haiku-4-5-20251001`) use their base model's price. Only token counts are stored, and costs are worked out from the current prices, so a price you add or correct also applies to the calls already in the 24-hour and 7-day windows. Check your provider's pricing page, as prices change. Cache writes, batch discounts and long-context surcharges are not modeled.
+A provider type as the key (`openai`, `openai_compatible`, `ollama`, `gemini` or `anthropic`) holding its own model list prices those models for that provider only, ahead of a plain entry for the same name. Use it when two providers serve a model under the same name, for example OpenAI and an OpenAI-compatible proxy both offering `gpt-5`: the example above prices the proxy's `gpt-5` without touching OpenAI's built-in price. Plain entries apply to every provider except local Ollama, whose models stay free unless priced under `ollama`.
+
+Each entry is `[input, output]`, `[input, output, cached_input]`, or an object with those keys. Cached input tokens (prompt-cache reads) bill at `cached_input`, or at `input` when it is not given. Model names match case-insensitively, and dated snapshots (`gpt-5-2025-08-07`, `claude-haiku-4-5-20251001`) use their base model's price. Only token counts are stored, and costs are worked out from the current prices, so a price you add or correct also applies to the calls already in the 24-hour and 7-day windows. Calls older than seven days are removed within five minutes, even when no new calls arrive. Check your provider's pricing page, as prices change. Cache writes, batch discounts and long-context surcharges are not modeled.
 
 ## Tool Retrieval (RAG)
 
