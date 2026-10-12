@@ -12,7 +12,7 @@ import secrets
 import time
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal, cast
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urlsplit, urlunsplit
 
 import httpx
 import psycopg
@@ -38,6 +38,9 @@ from ..const import (  # noqa: TID252
     OLLAMA_CATEGORY_URL_KEYS,
     OLLAMA_GPT_EFFORT,
     OLLAMA_OSS_TAG,
+    OPENAI_API_CHAT_COMPLETIONS,
+    OPENAI_API_EXPLICIT,
+    OPENAI_API_RESPONSES,
     OPENAI_CHAT_COMPLETIONS_PATH,
 )
 from .fallback import (
@@ -110,13 +113,19 @@ def ensure_http_url(url: str) -> str:
     return f"http://{url}"
 
 
-def _normalized_url(value: Any) -> str | None:
-    """Return a cleaned HTTP(S) URL or None."""
+def normalized_ollama_url(value: Any) -> str | None:
+    """
+    Return an Ollama URL in the one form setup keys clients by, or None.
+
+    Every URL setup checks, builds and looks up goes through here, so one server
+    written with and without a trailing slash is one server, not two.
+    """
     if value is None:
         return None
-    if isinstance(value, str) and not value.strip():
+    text = str(value).strip()
+    if not text:
         return None
-    return ensure_http_url(str(value))
+    return ensure_http_url(text).rstrip("/")
 
 
 def normalize_openai_compatible_base_url(url: str) -> str:
@@ -144,14 +153,14 @@ def ollama_url_for_category(
     """Pick the Ollama URL for a model category, falling back to the global URL."""
     specific_key = OLLAMA_CATEGORY_URL_KEYS.get(category)
     if specific_key:
-        url = _normalized_url(options.get(specific_key))
+        url = normalized_ollama_url(options.get(specific_key))
         if url:
             return url
 
     if fallback:
-        return _normalized_url(fallback)
+        return normalized_ollama_url(fallback)
 
-    return _normalized_url(options.get(CONF_OLLAMA_URL))
+    return normalized_ollama_url(options.get(CONF_OLLAMA_URL))
 
 
 def configured_ollama_urls(
@@ -160,9 +169,9 @@ def configured_ollama_urls(
     """Return a de-duplicated list of configured Ollama URLs."""
     urls: list[str] = []
 
-    base_url = _normalized_url(options.get(CONF_OLLAMA_URL)) or _normalized_url(
-        fallback
-    )
+    base_url = normalized_ollama_url(
+        options.get(CONF_OLLAMA_URL)
+    ) or normalized_ollama_url(fallback)
     if base_url:
         urls.append(base_url)
 
@@ -628,6 +637,56 @@ def valid_exclusion_entry(entry: str) -> bool:
 # ---------------------------
 
 
+def _http_status(resp: httpx.Response) -> str:
+    """Name an HTTP error status for a validator's exception message."""
+    return f"HTTP {resp.status_code}"
+
+
+def redact_url(url: str) -> str:
+    """Return ``url`` without credentials, query or fragment, for logging."""
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        # Malformed (bad IPv6 brackets, non-numeric port): nothing safe to show.
+        return "<invalid URL>"
+    host = parts.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    if port is not None:
+        host = f"{host}:{port}"
+    return urlunsplit((parts.scheme, host, parts.path, "", ""))
+
+
+# Transport errors whose text is safe to log: it names the network failure,
+# never the request. Other httpx errors can quote it: h11 rejects a key with a
+# stray newline as "Illegal header value b'Bearer sk-...'", key included.
+_SAFE_CAUSE_TYPES: tuple[type[BaseException], ...] = (
+    TimeoutError,
+    httpx.TimeoutException,
+    httpx.NetworkError,
+    OSError,
+)
+
+
+def health_failure_reason(err: Exception) -> str:
+    """
+    Describe why a health check failed, readably and without secrets.
+
+    The validators raise ``CannotConnectError`` from the transport error, so
+    the error itself often has no message, and a ``TimeoutError`` prints as
+    nothing at all. Naming the cause's type keeps the log line readable
+    (issue #711); its text is added only for error types that cannot carry a
+    request header (see ``_SAFE_CAUSE_TYPES``).
+    """
+    cause = err.__cause__
+    if cause is not None:
+        name = type(cause).__name__
+        detail = str(cause) if isinstance(cause, _SAFE_CAUSE_TYPES) else ""
+        return f"{name}: {detail}" if detail else name
+    return str(err) or type(err).__name__
+
+
 async def ollama_healthy(
     hass: HomeAssistant, base_url: str, timeout_s: float = 2.0
 ) -> bool:
@@ -636,7 +695,9 @@ async def ollama_healthy(
         await validate_ollama_url(hass, base_url, timeout_s)
     except CannotConnectError as err:
         LOGGER.warning(
-            "Ollama health check failed (%s): %s", ensure_http_url(base_url), err
+            "Ollama health check failed (%s): %s",
+            redact_url(ensure_http_url(base_url)),
+            health_failure_reason(err),
         )
         return False
     else:
@@ -653,7 +714,7 @@ async def openai_healthy(
     try:
         await validate_openai_key(hass, api_key, timeout_s)
     except (CannotConnectError, InvalidAuthError) as err:
-        LOGGER.warning("OpenAI health check failed: %s", err)
+        LOGGER.warning("OpenAI health check failed: %s", health_failure_reason(err))
         return False
     else:
         return True
@@ -669,7 +730,7 @@ async def gemini_healthy(
     try:
         await validate_gemini_key(hass, api_key, timeout_s)
     except (CannotConnectError, InvalidAuthError) as err:
-        LOGGER.warning("Gemini health check failed: %s", err)
+        LOGGER.warning("Gemini health check failed: %s", health_failure_reason(err))
         return False
     else:
         return True
@@ -694,9 +755,12 @@ async def validate_ollama_url(
     except (TimeoutError, httpx.RequestError) as err:
         LOGGER.debug("Ollama connectivity exception: %s", err)
         raise CannotConnectError from err
+    except (httpx.InvalidURL, ValueError) as err:
+        # A malformed saved URL must fail its check, not abort setup.
+        raise CannotConnectError(type(err).__name__) from err
     else:
         if resp.status_code >= HTTP_STATUS_BAD_REQUEST:
-            raise CannotConnectError
+            raise CannotConnectError(_http_status(resp))
 
 
 async def list_ollama_models(  # noqa: PLR0911
@@ -710,7 +774,8 @@ async def list_ollama_models(  # noqa: PLR0911
     try:
         async with asyncio.timeout(timeout_s):
             resp = await client.get(urljoin(base_url.rstrip("/") + "/", "api/tags"))
-    except (TimeoutError, httpx.RequestError):
+    except (TimeoutError, httpx.RequestError, httpx.InvalidURL, ValueError):
+        # Unreachable, or a malformed saved URL: offer no models either way.
         return []
     if resp.status_code >= HTTP_STATUS_BAD_REQUEST:
         return []
@@ -837,9 +902,9 @@ async def validate_openai_key(
         raise CannotConnectError from err
     else:
         if resp.status_code == HTTP_STATUS_UNAUTHORIZED:
-            raise InvalidAuthError
+            raise InvalidAuthError(_http_status(resp))
         if resp.status_code >= HTTP_STATUS_BAD_REQUEST:
-            raise CannotConnectError
+            raise CannotConnectError(_http_status(resp))
 
 
 # Statuses that mean "nothing serves this path here" rather than "your request
@@ -998,7 +1063,11 @@ async def openai_compatible_healthy(
             capability_path=OPENAI_CHAT_COMPLETIONS_PATH,
         )
     except (CannotConnectError, InvalidAuthError) as err:
-        LOGGER.warning("OpenAI-compatible health check failed (%s): %s", base_url, err)
+        LOGGER.warning(
+            "OpenAI-compatible health check failed (%s): %s",
+            redact_url(base_url),
+            health_failure_reason(err),
+        )
         return False
     else:
         return True
@@ -1031,9 +1100,9 @@ async def validate_gemini_key(
             HTTP_STATUS_UNAUTHORIZED,
             HTTP_STATUS_FORBIDDEN,
         ):
-            raise InvalidAuthError
+            raise InvalidAuthError(_http_status(resp))
         if resp.status_code >= HTTP_STATUS_BAD_REQUEST:
-            raise CannotConnectError
+            raise CannotConnectError(_http_status(resp))
 
 
 async def validate_anthropic_key(
@@ -1057,9 +1126,9 @@ async def validate_anthropic_key(
         raise CannotConnectError from err
     else:
         if resp.status_code == HTTP_STATUS_UNAUTHORIZED:
-            raise InvalidAuthError
+            raise InvalidAuthError(_http_status(resp))
         if resp.status_code >= HTTP_STATUS_BAD_REQUEST:
-            raise CannotConnectError
+            raise CannotConnectError(_http_status(resp))
 
 
 async def anthropic_healthy(
@@ -1072,7 +1141,7 @@ async def anthropic_healthy(
     try:
         await validate_anthropic_key(hass, api_key, timeout_s)
     except (CannotConnectError, InvalidAuthError) as err:
-        LOGGER.warning("Anthropic health check failed: %s", err)
+        LOGGER.warning("Anthropic health check failed: %s", health_failure_reason(err))
         return False
     else:
         return True
@@ -1295,6 +1364,76 @@ def thinking_configurable(
     if builder is None:
         return {}
     return builder(reasoning, effort, budget, model)
+
+
+def openai_uses_responses_api(model: Any) -> bool:
+    """
+    Return True for OpenAI models that must use the Responses API.
+
+    GPT-6-family models reject function tools combined with reasoning_effort
+    on /v1/chat/completions ("To use function tools, use /v1/responses or set
+    reasoning_effort to 'none'"), and the agent always binds tools. Every other
+    model stays on Chat Completions, the path this integration is tested on.
+    """
+    return str(model or "").lower().startswith("gpt-6")
+
+
+# OpenAI models served only on /v1/responses (Chat Completions answers 404 for
+# them whatever the request holds): the codex and -pro families, plus the names
+# langchain-openai 1.6 routes there on its own. /v1/models lists them, so the
+# model pickers offer them.
+_OPENAI_RESPONSES_ONLY_RE = re.compile(r"codex|(?:^|-)pro(?:-|$)|^gpt-5\.6-sol")
+
+
+def openai_requires_responses_api(model: Any) -> bool:
+    """Return True for OpenAI models that exist only on the Responses API."""
+    return bool(_OPENAI_RESPONSES_ONLY_RE.search(str(model or "").lower()))
+
+
+def openai_api_preference(
+    flat: Any,
+    by_model: Mapping[str, Any] | None,
+    model: Any,
+    *,
+    default_to_flat: bool = True,
+) -> str | None:
+    """
+    Return the user's API choice for a model, or None for automatic.
+
+    A per-model remembered choice wins; otherwise the feature's flat choice
+    applies to its primary model only (fallback models pass
+    default_to_flat=False, mirroring the per-model thinking settings).
+    """
+    remembered = (by_model or {}).get(str(model or ""))
+    if remembered in OPENAI_API_EXPLICIT:
+        return remembered
+    if default_to_flat and flat in OPENAI_API_EXPLICIT:
+        return flat
+    return None
+
+
+def resolve_openai_api(
+    *, provider_type: str, category: str, model: Any, preference: Any = None
+) -> str:
+    """
+    Return the API ("chat_completions" or "responses") a model call uses.
+
+    An explicit user choice always wins. Automatic keeps Chat Completions,
+    the path this integration is tested on, except where it cannot work on
+    OpenAI: a GPT-6-family chat model, which always binds tools, and a
+    Responses-only model (codex, -pro) in any category. OpenAI-compatible
+    servers default to Chat Completions, which nearly all serve.
+    A forced choice the backend rejects is recovered at call time (see
+    sampling_param_overrides in core/fallback.py), not here.
+    """
+    if preference in OPENAI_API_EXPLICIT:
+        return str(preference)
+    if provider_type == "openai" and (
+        openai_requires_responses_api(model)
+        or (category == "chat" and openai_uses_responses_api(model))
+    ):
+        return OPENAI_API_RESPONSES
+    return OPENAI_API_CHAT_COMPLETIONS
 
 
 def is_gemini_3_or_later(model: Any) -> bool:
