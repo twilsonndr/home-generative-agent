@@ -38,18 +38,23 @@ from ..const import (  # noqa: TID252
     OLLAMA_CATEGORY_URL_KEYS,
     OLLAMA_GPT_EFFORT,
     OLLAMA_OSS_TAG,
+    OPENAI_API_CHAT_COMPLETIONS,
+    OPENAI_API_EXPLICIT,
+    OPENAI_API_RESPONSES,
     OPENAI_CHAT_COMPLETIONS_PATH,
 )
 from .fallback import (
     ainvoke_dropping_unsupported_params,
     invoke_dropping_unsupported_params,
 )
+from .openai_models import openai_base_model, openai_supports_no_reasoning
 
 if TYPE_CHECKING:
     from collections.abc import (
         AsyncIterator,
         Callable,
         Coroutine,
+        Iterable,
         Mapping,
         MutableMapping,
         Sequence,
@@ -794,6 +799,94 @@ async def list_ollama_models(  # noqa: PLR0911
     return names
 
 
+OPENAI_API_BASE_URL = "https://api.openai.com/v1"
+
+# Substrings that mark an OpenAI model id as something other than a
+# chat/vision model (audio, image generation, moderation, legacy completion).
+_OPENAI_NON_CHAT_MARKERS = (
+    "audio",
+    "babbage",
+    "dall-e",
+    "davinci",
+    "embedding",
+    "image",
+    "instruct",
+    "live",
+    "moderation",
+    "realtime",
+    "search",
+    "transcribe",
+    "tts",
+    "whisper",
+)
+_OPENAI_CHAT_PREFIXES = ("gpt-", "o1", "o3", "o4", "chatgpt-", "codex-")
+
+# Model ids each category keeps from an official OpenAI /v1/models listing.
+# Unknown categories keep everything.
+_OPENAI_CATEGORY_FILTERS: dict[str, Callable[[str], bool]] = {
+    "chat": lambda m: (
+        m.startswith(_OPENAI_CHAT_PREFIXES)
+        and not any(marker in m for marker in _OPENAI_NON_CHAT_MARKERS)
+    ),
+    "embedding": lambda m: "embedding" in m,
+    "stt": lambda m: "transcribe" in m or "whisper" in m,
+    "tts": lambda m: "tts" in m,
+}
+_OPENAI_CATEGORY_FILTERS["vlm"] = _OPENAI_CATEGORY_FILTERS["chat"]
+_OPENAI_CATEGORY_FILTERS["summarization"] = _OPENAI_CATEGORY_FILTERS["chat"]
+
+
+def filter_openai_models(model_ids: Iterable[str], category: str) -> list[str]:
+    """Keep the OpenAI model ids that can serve ``category``, sorted."""
+    keep = _OPENAI_CATEGORY_FILTERS.get(category)
+    return sorted(
+        m for m in set(model_ids) if keep is None or keep(openai_base_model(m))
+    )
+
+
+def merge_model_options(preferred: Iterable[str], listed: Iterable[str]) -> list[str]:
+    """Return ``preferred`` in order, then any ``listed`` ids not already shown."""
+    return [model for model in dict.fromkeys((*preferred, *listed)) if model]
+
+
+async def list_openai_models(
+    hass: HomeAssistant,
+    api_key: str | None,
+    base_url: str | None = None,
+    timeout_s: float = 5.0,
+) -> list[str]:
+    """
+    Return the model ids an OpenAI (or OpenAI-compatible) endpoint lists.
+
+    Calls ``GET {base_url}/models`` (the OpenAI API when ``base_url`` is
+    unset). Any failure returns ``[]`` so the config flow can fall back to its
+    built-in model list.
+    """
+    url = (
+        normalize_openai_compatible_base_url(base_url)
+        if base_url
+        else OPENAI_API_BASE_URL
+    ) + "/models"
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    client = get_async_client(hass)
+    try:
+        async with asyncio.timeout(timeout_s):
+            resp = await client.get(url, headers=headers)
+    except (TimeoutError, httpx.RequestError, httpx.InvalidURL):
+        return []
+    if resp.status_code >= HTTP_STATUS_BAD_REQUEST:
+        return []
+    try:
+        payload = resp.json()
+    except ValueError:
+        return []
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, list):
+        return []
+    ids = (item.get("id") if isinstance(item, dict) else None for item in data)
+    return list(dict.fromkeys(i for i in ids if isinstance(i, str) and i))
+
+
 async def validate_openai_key(
     hass: HomeAssistant, api_key: str, timeout_s: float = 10.0
 ) -> None:
@@ -804,7 +897,7 @@ async def validate_openai_key(
     try:
         async with asyncio.timeout(timeout_s):
             resp = await client.get(
-                "https://api.openai.com/v1/models",
+                f"{OPENAI_API_BASE_URL}/models",
                 headers={"Authorization": f"Bearer {api_key}"},
             )
     except (TimeoutError, httpx.RequestError) as err:
@@ -1163,14 +1256,21 @@ def reasoning_field(
 
 
 _EFFORT_LEVELS = frozenset({"minimal", "low", "medium", "high"})
+# OpenAI's reasoning.effort also takes "none" (GPT-5.1+) and "xhigh"/"max"
+# (GPT-6). A model that rejects a level is retried without it.
+_OPENAI_EFFORT_LEVELS = _EFFORT_LEVELS | {"none", "xhigh", "max"}
 
 
 def _thinking_openai(
-    _reasoning: Any, effort: str | None, _budget: int | None, _model: str
+    _reasoning: Any, effort: str | None, _budget: int | None, model: str
 ) -> dict[str, Any]:
     # Cloud OpenAI reasoning models cannot disable thinking; only known effort
     # levels are meaningful. On/Off and free-form strings are not sent.
-    return {"reasoning_effort": effort} if effort in _EFFORT_LEVELS else {}
+    if effort == "none" and not openai_supports_no_reasoning(model):
+        # OpenAI's guidance for models without "none": use "low". Dropping the
+        # field instead would restore the model's default (medium) effort.
+        effort = "low"
+    return {"reasoning_effort": effort} if effort in _OPENAI_EFFORT_LEVELS else {}
 
 
 def _thinking_openai_compatible(
@@ -1271,6 +1371,76 @@ def thinking_configurable(
     if builder is None:
         return {}
     return builder(reasoning, effort, budget, model)
+
+
+def openai_uses_responses_api(model: Any) -> bool:
+    """
+    Return True for OpenAI models that must use the Responses API.
+
+    GPT-6-family models reject function tools combined with reasoning_effort
+    on /v1/chat/completions ("To use function tools, use /v1/responses or set
+    reasoning_effort to 'none'"), and the agent always binds tools. Every other
+    model stays on Chat Completions, the path this integration is tested on.
+    """
+    return openai_base_model(model).startswith("gpt-6")
+
+
+# OpenAI models served only on /v1/responses (Chat Completions answers 404 for
+# them whatever the request holds): the codex and -pro families, plus the names
+# langchain-openai 1.6 routes there on its own. /v1/models lists them, so the
+# model pickers offer them.
+_OPENAI_RESPONSES_ONLY_RE = re.compile(r"codex|(?:^|-)pro(?:-|$)|^gpt-5\.6-sol")
+
+
+def openai_requires_responses_api(model: Any) -> bool:
+    """Return True for OpenAI models that exist only on the Responses API."""
+    return bool(_OPENAI_RESPONSES_ONLY_RE.search(openai_base_model(model)))
+
+
+def openai_api_preference(
+    flat: Any,
+    by_model: Mapping[str, Any] | None,
+    model: Any,
+    *,
+    default_to_flat: bool = True,
+) -> str | None:
+    """
+    Return the user's API choice for a model, or None for automatic.
+
+    A per-model remembered choice wins; otherwise the feature's flat choice
+    applies to its primary model only (fallback models pass
+    default_to_flat=False, mirroring the per-model thinking settings).
+    """
+    remembered = (by_model or {}).get(str(model or ""))
+    if remembered in OPENAI_API_EXPLICIT:
+        return remembered
+    if default_to_flat and flat in OPENAI_API_EXPLICIT:
+        return flat
+    return None
+
+
+def resolve_openai_api(
+    *, provider_type: str, category: str, model: Any, preference: Any = None
+) -> str:
+    """
+    Return the API ("chat_completions" or "responses") a model call uses.
+
+    An explicit user choice always wins. Automatic keeps Chat Completions,
+    the path this integration is tested on, except where it cannot work on
+    OpenAI: a GPT-6-family chat model, which always binds tools, and a
+    Responses-only model (codex, -pro) in any category. OpenAI-compatible
+    servers default to Chat Completions, which nearly all serve.
+    A forced choice the backend rejects is recovered at call time (see
+    sampling_param_overrides in core/fallback.py), not here.
+    """
+    if preference in OPENAI_API_EXPLICIT:
+        return str(preference)
+    if provider_type == "openai" and (
+        openai_requires_responses_api(model)
+        or (category == "chat" and openai_uses_responses_api(model))
+    ):
+        return OPENAI_API_RESPONSES
+    return OPENAI_API_CHAT_COMPLETIONS
 
 
 def is_gemini_3_or_later(model: Any) -> bool:

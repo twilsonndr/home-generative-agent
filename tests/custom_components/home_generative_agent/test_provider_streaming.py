@@ -46,3 +46,26 @@ def test_anthropic_provider_primed_before_publish() -> None:
     prime = block.index("await async_prime_async_client(hass, anthropic_chat)")
     publish = block.index("anthropic_provider = anthropic_chat.configurable_fields(")
     assert prime < publish
+
+
+def test_openai_provider_defaults_to_chat_completions() -> None:
+    """Cloud OpenAI stays on Chat Completions unless a model needs /responses."""
+    block = _provider_block("openai_provider = ChatOpenAI(", chars=1600)
+    assert "use_responses_api=False" in block
+    assert 'use_responses_api=ConfigurableField(id="use_responses_api")' in block
+
+
+def test_openai_compatible_provider_defaults_to_chat_completions() -> None:
+    """OpenAI-compatible servers default to Chat Completions, choosable per model."""
+    start = _INIT.index("openai_compatible_provider = ChatOpenAI(")
+    end = _INIT.index("except Exception:", start)
+    block = _INIT[start:end]
+    assert "use_responses_api=False" in block
+    assert 'use_responses_api=ConfigurableField(id="use_responses_api")' in block
+
+
+def test_every_openai_model_config_applies_the_api_choice() -> None:
+    """Chat, VLM and summary (both OpenAI providers) and fallbacks honor it."""
+    calls = _INIT.count("_openai_api_config(") - _INIT.count("def _openai_api_config(")
+    # chat x2, vlm x2, summarization x2, cloud fallback x1
+    assert calls == 7

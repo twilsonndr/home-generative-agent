@@ -161,6 +161,9 @@ from .const import (
     MODEL_CATEGORY_SPECS,
     NO_DATABASE_ENROLL_MESSAGE,
     NO_DATABASE_REMEDIATION,
+    OPENAI_API_OPTION_KEYS,
+    OPENAI_API_PROVIDER_TYPES,
+    OPENAI_API_RESPONSES,
     OPENAI_CHAT_COMPLETIONS_PATH,
     RECOMMENDED_ANTHROPIC_CHAT_MODEL,
     RECOMMENDED_ANTHROPIC_SUMMARIZATION_MODEL,
@@ -284,10 +287,12 @@ from .core.utils import (
     normalized_ollama_url,
     ollama_healthy,
     ollama_url_for_category,
+    openai_api_preference,
     openai_compatible_healthy,
     openai_healthy,
     reasoning_field,
     redact_url,
+    resolve_openai_api,
     thinking_configurable,
     validate_anthropic_key,
     validate_gemini_key,
@@ -2232,6 +2237,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
     openai_provider: RunnableSerializable[LanguageModelInput, BaseMessage] | None = None
     if openai_ok:
         try:
+            # Responses API, not Chat Completions: GPT-6-family models (e.g.
+            # gpt-6-luna, gpt-6.1-sol) reject function tools combined with
+            # reasoning_effort on /v1/chat/completions, and the agent always
+            # binds tools. langchain-openai maps reasoning_effort to
+            # reasoning.effort and max_tokens to max_output_tokens here.
+            # OpenAI-compatible servers below stay on Chat Completions since
+            # most do not implement /v1/responses.
             openai_provider = ChatOpenAI(
                 api_key=openai_secret,
                 timeout=120,
@@ -2241,7 +2253,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                 stream_usage=True,
                 # langchain-openai 1.6 routes some model names (gpt-6 with
                 # tools, *codex*, *-pro) to the Responses API on its own; this
-                # integration is built and tested on Chat Completions.
+                # integration is built and tested on Chat Completions, so the
+                # default stays off. resolve_openai_api() turns the Responses
+                # API on per model through the configurable field: for GPT-6
+                # chat models, which reject function tools combined with
+                # reasoning_effort on /v1/chat/completions, or when the user
+                # chooses it (CONF_FEATURE_MODEL_API).
                 use_responses_api=False,
             ).configurable_fields(
                 model_name=ConfigurableField(id="model_name"),
@@ -2249,6 +2266,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                 top_p=ConfigurableField(id="top_p"),
                 max_tokens=ConfigurableField(id="max_tokens"),
                 reasoning_effort=ConfigurableField(id="reasoning_effort"),
+                use_responses_api=ConfigurableField(id="use_responses_api"),
             )
         except Exception:
             LOGGER.exception("OpenAI provider init failed; continuing without it.")
@@ -2355,7 +2373,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                 http_async_client=http_async_client,
                 # Most OpenAI-compatible servers serve Chat Completions only;
                 # keep langchain-openai 1.6 from switching to /responses by
-                # model name.
+                # model name. A user can still choose the Responses API per
+                # model (CONF_FEATURE_MODEL_API) for servers that serve it.
                 use_responses_api=False,
             ).configurable_fields(
                 model_name=ConfigurableField(id="model_name"),
@@ -2364,6 +2383,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                 max_tokens=ConfigurableField(id="max_tokens"),
                 reasoning_effort=ConfigurableField(id="reasoning_effort"),
                 extra_body=ConfigurableField(id="extra_body"),
+                use_responses_api=ConfigurableField(id="use_responses_api"),
             )
         except Exception:
             LOGGER.exception(
@@ -2758,6 +2778,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
             model=str(model_name),
         )
 
+    def _openai_api_config(
+        category: str,
+        provider_type: str,
+        model_name: Any,
+        *,
+        default_to_flat: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Return the use_responses_api configurable entry for an OpenAI model.
+
+        Uses the per-model remembered API choice, else (primary model only)
+        the feature's flat choice, else automatic.
+        """
+        if (
+            provider_type not in OPENAI_API_PROVIDER_TYPES
+            or category not in OPENAI_API_OPTION_KEYS
+        ):
+            return {}
+        flat_key, by_model_key = OPENAI_API_OPTION_KEYS[category]
+        preference = openai_api_preference(
+            options.get(flat_key),
+            options.get(by_model_key),
+            model_name,
+            default_to_flat=default_to_flat,
+        )
+        api = resolve_openai_api(
+            provider_type=provider_type,
+            category=category,
+            model=model_name,
+            preference=preference,
+        )
+        return {"use_responses_api": api == OPENAI_API_RESPONSES}
+
     ollama_chat_keep_alive = options.get(
         CONF_OLLAMA_CHAT_KEEPALIVE, RECOMMENDED_OLLAMA_CHAT_KEEPALIVE
     )
@@ -2780,6 +2833,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
             config={
                 "configurable": {
                     "model_name": openai_chat_model,
+                    **_openai_api_config("chat", "openai", openai_chat_model),
                     "temperature": chat_temp,
                     "top_p": CHAT_MODEL_TOP_P,
                     **_chat_thinking_for_model("openai", openai_chat_model),
@@ -2795,6 +2849,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
             config={
                 "configurable": {
                     "model_name": openai_compatible_chat_model,
+                    **_openai_api_config(
+                        "chat", "openai_compatible", openai_compatible_chat_model
+                    ),
                     "temperature": chat_temp,
                     "top_p": CHAT_MODEL_TOP_P,
                     **_chat_thinking_for_model(
@@ -2859,22 +2916,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
     vlm_provider = options.get(CONF_VLM_PROVIDER, RECOMMENDED_VLM_PROVIDER)
     vlm_temp = options.get(CONF_VLM_TEMPERATURE, RECOMMENDED_VLM_TEMPERATURE)
     if vlm_provider == "openai":
+        openai_vlm = options.get(CONF_OPENAI_VLM, RECOMMENDED_OPENAI_VLM)
         vision_model = (openai_provider or NullChat()).with_config(
             config={
                 "configurable": {
-                    "model_name": options.get(CONF_OPENAI_VLM, RECOMMENDED_OPENAI_VLM),
+                    "model_name": openai_vlm,
+                    **_openai_api_config("vlm", "openai", openai_vlm),
                     "temperature": vlm_temp,
                     "top_p": VLM_TOP_P,
                 }
             }
         )
     elif vlm_provider == "openai_compatible":
+        compat_vlm = options.get(
+            CONF_OPENAI_COMPATIBLE_VLM, RECOMMENDED_OPENAI_COMPATIBLE_VLM
+        )
         vision_model = (openai_compatible_provider or NullChat()).with_config(
             config={
                 "configurable": {
-                    "model_name": options.get(
-                        CONF_OPENAI_COMPATIBLE_VLM, RECOMMENDED_OPENAI_COMPATIBLE_VLM
-                    ),
+                    "model_name": compat_vlm,
+                    **_openai_api_config("vlm", "openai_compatible", compat_vlm),
                     "temperature": vlm_temp,
                     "top_p": VLM_TOP_P,
                 }
@@ -2936,25 +2997,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
         RECOMMENDED_SUMMARIZATION_MODEL_TEMPERATURE,
     )
     if sum_provider == "openai":
+        openai_sum_model = options.get(
+            CONF_OPENAI_SUMMARIZATION_MODEL,
+            RECOMMENDED_OPENAI_SUMMARIZATION_MODEL,
+        )
         summarization_model = (openai_provider or NullChat()).with_config(
             config={
                 "configurable": {
-                    "model_name": options.get(
-                        CONF_OPENAI_SUMMARIZATION_MODEL,
-                        RECOMMENDED_OPENAI_SUMMARIZATION_MODEL,
-                    ),
+                    "model_name": openai_sum_model,
+                    **_openai_api_config("summarization", "openai", openai_sum_model),
                     "temperature": sum_temp,
                     "top_p": SUMMARIZATION_MODEL_TOP_P,
                 }
             }
         )
     elif sum_provider == "openai_compatible":
+        compat_sum_model = options.get(
+            CONF_OPENAI_COMPATIBLE_SUMMARIZATION_MODEL,
+            RECOMMENDED_OPENAI_COMPATIBLE_SUMMARIZATION_MODEL,
+        )
         summarization_model = (openai_compatible_provider or NullChat()).with_config(
             config={
                 "configurable": {
-                    "model_name": options.get(
-                        CONF_OPENAI_COMPATIBLE_SUMMARIZATION_MODEL,
-                        RECOMMENDED_OPENAI_COMPATIBLE_SUMMARIZATION_MODEL,
+                    "model_name": compat_sum_model,
+                    **_openai_api_config(
+                        "summarization", "openai_compatible", compat_sum_model
                     ),
                     "temperature": sum_temp,
                     "top_p": SUMMARIZATION_MODEL_TOP_P,
@@ -3073,6 +3140,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: HGAConfigEntry) -> bool:
                     provider.provider_type, model_name, default_to_flat=False
                 )
             )
+        config.update(
+            _openai_api_config(
+                category, provider.provider_type, model_name, default_to_flat=False
+            )
+        )
         return model.with_config(config={"configurable": config})
 
     def _configured_ollama_model(

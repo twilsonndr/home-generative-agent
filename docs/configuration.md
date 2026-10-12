@@ -120,7 +120,7 @@ What each choice sends depends on the provider:
 | --- | --- | --- | --- | --- |
 | Ollama | `reasoning: false` | `reasoning: true` | passed through for gpt-oss models; other models treat any effort as On | not supported by the Ollama API |
 | OpenAI Compatible (llama.cpp, vLLM, …) | `reasoning_effort: none` + `chat_template_kwargs: {enable_thinking: false}` | `chat_template_kwargs: {enable_thinking: true}` | `reasoning_effort` — free-form values (e.g. `xhigh`) pass through verbatim; the server owns the vocabulary | `thinking_budget_tokens` (recent llama.cpp servers; older servers ignore it) |
-| OpenAI | not sent (cloud reasoning models cannot disable thinking) | not sent | `reasoning_effort` (known levels only); a model that rejects it is retried without it automatically | not supported |
+| OpenAI | not sent (choose the `none` effort level on models that support it; GPT-6 Astra and GPT-6.1 Sol do not, and get `low` instead) | not sent | `reasoning_effort`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (GPT-6-family models are sent through the Responses API as `reasoning.effort`, since they reject tools plus reasoning on Chat Completions); a model that rejects a level is retried without it automatically | not supported |
 | Gemini | `thinking_budget: 0` | `thinking_budget` (dynamic when no budget set) | not offered | `thinking_budget` |
 | Anthropic | not sent (thinking is off by default) | extended thinking with `budget_tokens` | not applicable (only Off/On offered) | `budget_tokens`, clamped to 1024–32768; `max_tokens` is raised above the budget and temperature is pinned to 1, as the API requires |
 
@@ -152,6 +152,25 @@ Notes:
 > **Gemini 3 temperature** — Google strongly recommends leaving Gemini 3 models at their default temperature of `1.0`; lower values can cause looping or degraded reasoning. Gemini accepts a low temperature without error, so HGA handles this at setup time instead: when a Gemini 3-family model is selected and the feature's temperature is still the recommended default (`0.2`, which predates Gemini 3), HGA sends `1.0` and leaves `top_p` unset so the API defaults apply. A temperature you have explicitly changed away from the default is sent as configured — with a warning in the log pointing at Google's guidance. Gemini 2.5 and earlier models always use the configured values. This applies to primary and fallback Gemini models alike; non-Gemini models in the same feature keep the configured temperature.
 
 ---
+
+### OpenAI API: Chat Completions or Responses
+
+For **OpenAI** and **OpenAI Compatible** providers, the Conversation, Camera Image Analysis and Conversation Summary model forms have an **OpenAI API** setting:
+
+| Choice | What it does |
+| --- | --- |
+| **Automatic** (default) | Uses the best API for the selected model. The option's label names the API it resolves to. OpenAI GPT-6-family chat models (`gpt-6-luna`, `gpt-6.1-sol`, …) use the Responses API, because they reject function tools combined with a reasoning effort on Chat Completions, and so do OpenAI models that exist only on the Responses API (`*-codex`, `*-pro`) in every model form. Everything else, including every OpenAI-compatible server, uses Chat Completions. Fine-tuned models (`ft:gpt-…`) follow their base model and are listed with it. |
+| **Chat Completions** | Always calls `/v1/chat/completions`. |
+| **Responses API** | Always calls `/v1/responses`, for example on an OpenAI-compatible server that implements it (such as vLLM). |
+
+The choice is remembered **per model name**, like the thinking settings: switching the model restores that model's choice (or Automatic), and choosing Automatic again forgets the override. As with thinking, the value on screen belongs to the model that was stored when the form opened, so after switching models, save again to change the new model's choice.
+
+A forced choice that the backend cannot serve does not fail the turn:
+
+- **Chat Completions on a GPT-6 chat model:** GPT-6 Sol and GPT-6 Luna retry once with the reasoning effort set to `none`, the only effort they accept alongside tools on Chat Completions. Answers work, but without reasoning. GPT-6 Astra and GPT-6.1 Sol cannot call tools on Chat Completions at any effort, so their turns retry once on the Responses API with your effort unchanged. Pick Automatic to skip the failed first attempt.
+- **Responses API on a server without it** (`/v1/responses` returns 404, 405 or 501, or a 400 saying the endpoint is unsupported): the request is retried once on Chat Completions. A GPT-6 Sol or Luna conversation turn (which sends tools) is retried with the reasoning effort set to `none` in the same retry, since Chat Completions rejects their tools with any other effort.
+
+Both retries log a warning naming the rejected setting, so switching back to Automatic removes the extra round trip.
 
 ## Tool Retrieval (RAG)
 
@@ -268,7 +287,7 @@ HGA provides a built-in STT engine — no separate STT integration required. Two
    - **OpenAI:** either reuse an existing OpenAI Model Provider subentry or select **Use a separate key** and enter a dedicated API key.
    - **Local:** enter the server URL (e.g. `http://192.168.1.100:8000` — a missing `/v1` suffix is added automatically). The API key is optional; leave it blank for servers without authentication. The endpoint is validated when you submit the form: HGA asks the server for its model catalog (`/v1/models`), and a server that does not serve one is accepted as long as it serves `/v1/audio/transcriptions`.
 5. On **Model & advanced options**, pick a model and set optional fields:
-   - model: recommended `gpt-4o-mini-transcribe` (OpenAI) or `deepdml/faster-whisper-large-v3-turbo-ct2` (Local; any custom model ID your server exposes can be typed in)
+   - model: recommended `gpt-4o-mini-transcribe` (OpenAI; `gpt-transcribe` is OpenAI's newest) or `deepdml/faster-whisper-large-v3-turbo-ct2` (Local). The dropdown also lists the transcription models your OpenAI account or local server reports, and any model ID can be typed in
    - `language` (optional): e.g. `en` or `en-US`
    - `prompt` (optional): hints for domain-specific vocabulary
    - `temperature` (optional): 0–1
@@ -357,7 +376,7 @@ HGA also provides a built-in TTS engine for Assist pipelines, so a reply can be 
    - **OpenAI:** reuse an existing OpenAI Model Provider subentry or select **Use a separate key** and enter a dedicated API key.
    - **Local:** enter the server URL (e.g. `http://192.168.1.100:8000` — a missing `/v1` suffix is added automatically). The API key is optional; leave it blank for servers without authentication. The endpoint is validated when you submit the form: HGA asks the server for its model catalog (`/v1/models`), and a server that does not serve one — several TTS-only servers, such as [Chatterbox-TTS-Server](https://github.com/devnen/Chatterbox-TTS-Server), answer 404 there — is accepted as long as it serves `/v1/audio/speech`.
 5. On **Model, voice & advanced options**:
-   - model: `gpt-4o-mini-tts` (recommended), `tts-1`, or `tts-1-hd` for OpenAI; `speaches-ai/Kokoro-82M-v1.0-ONNX` (recommended) or any model ID your server serves for Local
+   - model: `gpt-4o-mini-tts` (recommended), `tts-1`, or `tts-1-hd` for OpenAI; `speaches-ai/Kokoro-82M-v1.0-ONNX` (recommended) or any model ID your server serves for Local. The dropdown also lists the speech models your OpenAI account or local server reports, and any model ID can be typed in
    - voice: OpenAI offers `alloy`, `ash`, `ballad`, `cedar`, `coral`, `echo`, `fable`, `marin`, `nova`, `onyx`, `sage`, `shimmer`, and `verse`; for Local, type a voice id the model provides (Kokoro: `af_heart`, `af_bella`, `am_adam`, `bf_emma`, `bm_george`, …; piper: the voice name from the model id, e.g. `hfc_female` for `speaches-ai/piper-en_US-hfc_female-medium`)
    - speed: 0.25–4.0, default 1.0
    - voice instructions (optional): tone and pacing hints, used only by OpenAI's `gpt-4o-mini-tts` models and ignored elsewhere

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -21,7 +22,9 @@ from custom_components.home_generative_agent.core.fallback import (
     FallbackVLM,
     _is_retryable,
     ainvoke_dropping_unsupported_params,
+    describe_overrides,
     invoke_dropping_unsupported_params,
+    sampling_param_overrides,
     unsupported_sampling_param,
     unsupported_sampling_param_in_chain,
 )
@@ -32,7 +35,7 @@ class FakeAIMessage:
 
     def __init__(
         self,
-        content: str,
+        content: str | list[Any],
         *,
         response_metadata: dict[str, Any] | None = None,
         tool_calls: list[Any] | None = None,
@@ -808,7 +811,7 @@ async def test_fallback_chat_tool_bound_rebinds_same_provider() -> None:
     from its pre-bind source with default sampling and retry it in place.
     """
     bound_p1 = AsyncMock()
-    bound_p1.ainvoke.side_effect = [_bad_request_error(), _bad_request_error()]
+    bound_p1.ainvoke.side_effect = [_bad_request_error()]
     rebound_p1 = AsyncMock()
     rebound_p1.ainvoke.return_value = FakeAIMessage("rebound")
     stripped_p1 = MagicMock()
@@ -831,6 +834,10 @@ async def test_fallback_chat_tool_bound_rebinds_same_provider() -> None:
     result = await bound.ainvoke(["hello"])
 
     assert result.content == "rebound"
+    # One failed request, then the rebind: no config-merge retry that would
+    # resend the same baked-in params.
+    assert bound_p1.ainvoke.await_count == 1
+    assert rebound_p1.ainvoke.await_count == 1
     # p1 was retried in place with default sampling; p2 never entered.
     bound_p2.ainvoke.assert_not_awaited()
     strip_config = src_p1.with_config.call_args.kwargs["config"]
@@ -843,7 +850,7 @@ async def test_fallback_chat_tool_bound_rebinds_same_provider() -> None:
 async def test_fallback_chat_rebind_failure_still_falls_over() -> None:
     """When the rebound provider also fails, normal provider fallback proceeds."""
     bound_p1 = AsyncMock()
-    bound_p1.ainvoke.side_effect = [_bad_request_error(), _bad_request_error()]
+    bound_p1.ainvoke.side_effect = [_bad_request_error()]
     rebound_p1 = AsyncMock()
     rebound_p1.ainvoke.side_effect = HomeAssistantError("still down")
     stripped_p1 = MagicMock()
@@ -867,3 +874,333 @@ async def test_fallback_chat_rebind_failure_still_falls_over() -> None:
 def test_reasoning_effort_is_droppable() -> None:
     """A 400 rejecting reasoning_effort must be retried without it (issue #580)."""
     assert "reasoning_effort" in DROPPABLE_SAMPLING_PARAMS
+
+
+@pytest.mark.asyncio
+async def test_fallback_chat_responses_api_reasoning_only_incomplete() -> None:
+    """A Responses API reply cut off mid-reasoning falls back like an empty one."""
+    primary = AsyncMock()
+    primary.ainvoke.return_value = FakeAIMessage(
+        [{"type": "reasoning", "summary": [], "id": "rs_1"}],
+        response_metadata={
+            "status": "incomplete",
+            "incomplete_details": {"reason": "max_output_tokens"},
+            "model_name": "gpt-6-luna",
+        },
+    )
+    fallback = AsyncMock()
+    fallback.ainvoke.return_value = FakeAIMessage("fallback")
+
+    model = FallbackChatModel(
+        chain=[(primary, "cloud", "p1"), (fallback, "cloud", "p2")]
+    )
+
+    result = await model.ainvoke(["hello"])
+
+    assert result.content == "fallback"
+    assert fallback.ainvoke.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fallback_chat_responses_api_text_blocks_do_not_fallback() -> None:
+    """A Responses API reply with text blocks is a real answer."""
+    primary = AsyncMock()
+    primary.ainvoke.return_value = FakeAIMessage(
+        [
+            {"type": "reasoning", "summary": [], "id": "rs_1"},
+            {"type": "text", "text": "The lights are on."},
+        ],
+        response_metadata={"status": "completed", "model_name": "gpt-6-luna"},
+    )
+    fallback = AsyncMock()
+
+    model = FallbackChatModel(
+        chain=[(primary, "cloud", "p1"), (fallback, "cloud", "p2")]
+    )
+
+    await model.ainvoke(["hello"])
+
+    assert fallback.ainvoke.await_count == 0
+
+
+def _gpt6_tools_error(model: str = "gpt-6-luna") -> Exception:
+    request = httpx.Request("POST", "https://proxy.local/v1/chat/completions")
+    response = httpx.Response(400, request=request)
+    body = {
+        "message": (
+            "Function tools with reasoning_effort are not supported for "
+            f"{model} in /v1/chat/completions. To use function tools, use "
+            "/v1/responses or set reasoning_effort to 'none'."
+        ),
+        "type": "invalid_request_error",
+        "param": "reasoning_effort",
+        "code": None,
+    }
+    return openai.BadRequestError(
+        f"Error code: 400 - {{'error': {body}}}",
+        response=response,  # pyright: ignore[reportArgumentType]  # httpx vs openai 3's httpx2
+        body=body,
+    )
+
+
+def test_sampling_param_overrides_sets_none_effort_for_gpt6_tools() -> None:
+    """The GPT-6 tools rejection retries with an explicit effort of "none"."""
+    wrapped = HomeAssistantError("Model invocation failed")
+    wrapped.__cause__ = _gpt6_tools_error()
+    overrides = sampling_param_overrides(wrapped)
+    assert overrides["reasoning_effort"] == "none"
+    assert overrides["temperature"] is None
+    assert overrides["top_p"] is None
+
+
+@pytest.mark.parametrize("model", ["gpt-6.1-sol", "gpt-6-astra", "'gpt-6-astra'"])
+def test_gpt6_tools_error_switches_to_responses_without_none_effort(
+    model: str,
+) -> None:
+    """Models that reject "none" retry on the Responses API, keeping the effort."""
+    wrapped = HomeAssistantError("Model invocation failed")
+    wrapped.__cause__ = _gpt6_tools_error(model)
+    assert unsupported_sampling_param_in_chain(wrapped) == "use_responses_api"
+    overrides = sampling_param_overrides(wrapped)
+    assert overrides["use_responses_api"] is True
+    assert "reasoning_effort" not in overrides
+    assert overrides["temperature"] is None
+
+
+@pytest.mark.parametrize("model", ["gpt-6-luna", "gpt-6-sol"])
+def test_gpt6_tools_error_keeps_none_retry_where_supported(model: str) -> None:
+    """GPT-6 Sol and Luna accept "none", so they stay on Chat Completions."""
+    err = _gpt6_tools_error(model)
+    assert unsupported_sampling_param(err) == "reasoning_effort"
+    overrides = sampling_param_overrides(err)
+    assert overrides["reasoning_effort"] == "none"
+    assert "use_responses_api" not in overrides
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_dropping_moves_astra_tools_to_responses() -> None:
+    """The config-merge retry flips the API instead of sending "none"."""
+    model = MagicMock()
+    model.ainvoke = AsyncMock(side_effect=[_gpt6_tools_error("gpt-6-astra"), "ok"])
+
+    result = await ainvoke_dropping_unsupported_params(
+        model, ["hi"], {"configurable": {"reasoning_effort": "high"}}
+    )
+
+    assert result == "ok"
+    retry = model.ainvoke.await_args_list[1].args[1]["configurable"]
+    assert retry["use_responses_api"] is True
+    assert retry["reasoning_effort"] == "high"
+
+
+def test_sampling_param_overrides_nulls_everything_otherwise() -> None:
+    """Other sampling-param 400s still null every droppable param."""
+    overrides = sampling_param_overrides(_bad_request_error())
+    assert overrides == dict.fromkeys(overrides)
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_dropping_sends_none_effort_for_gpt6_tools() -> None:
+    """The config-merge retry passes reasoning_effort "none", not an omission."""
+    model = MagicMock()
+    model.ainvoke = AsyncMock(side_effect=[_gpt6_tools_error(), "ok"])
+
+    result = await ainvoke_dropping_unsupported_params(
+        model, ["hi"], {"configurable": {"reasoning_effort": "low"}}
+    )
+
+    assert result == "ok"
+    retry_config = model.ainvoke.await_args_list[1].args[1]
+    assert retry_config["configurable"]["reasoning_effort"] == "none"
+
+
+def _status_error(status: int, url: str, message: str = "Not Found") -> Exception:
+    request = httpx.Request("POST", url)
+    response = httpx.Response(status, request=request)
+    body = {"message": message, "type": "invalid_request_error", "code": None}
+    error_cls = {
+        400: openai.BadRequestError,
+        404: openai.NotFoundError,
+    }.get(status, openai.APIStatusError)
+    return error_cls(
+        f"Error code: {status} - {{'error': {body}}}",
+        response=response,  # pyright: ignore[reportArgumentType]  # httpx vs openai 3's httpx2
+        body=body,
+    )
+
+
+@pytest.mark.parametrize("status", [404, 405, 501])
+def test_responses_api_without_route_falls_back_to_chat_completions(
+    status: int,
+) -> None:
+    """A server with no /responses route retries on Chat Completions."""
+    err = _status_error(status, "http://llama:8080/v1/responses")
+    assert unsupported_sampling_param(err) == "use_responses_api"
+    overrides = sampling_param_overrides(err)
+    assert overrides["use_responses_api"] is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "This model is not supported in the Responses API.",
+        "Unsupported endpoint: /v1/responses",
+    ],
+)
+def test_responses_endpoint_unsupported_400_falls_back(message: str) -> None:
+    """A 400 naming the Responses endpoint as unsupported also falls back."""
+    err = _status_error(400, "https://api.openai.com/v1/responses", message)
+    assert unsupported_sampling_param(err) == "use_responses_api"
+
+
+def test_responses_param_400_is_not_an_api_fallback() -> None:
+    """A param 400 on /responses keeps its own handling, not an API switch."""
+    err = _status_error(
+        400,
+        "https://api.openai.com/v1/responses",
+        "Unsupported parameter: 'top_p' is not supported with this model.",
+    )
+    assert unsupported_sampling_param(err) != "use_responses_api"
+
+
+def test_chat_completions_404_is_not_an_api_fallback() -> None:
+    """A 404 from Chat Completions (e.g. unknown model) is not retried."""
+    err = _status_error(404, "https://api.openai.com/v1/chat/completions")
+    assert unsupported_sampling_param(err) is None
+    assert "use_responses_api" not in sampling_param_overrides(err)
+
+
+def test_other_sampling_errors_leave_api_choice_alone() -> None:
+    """Nulling use_responses_api would hand routing back to langchain."""
+    assert "use_responses_api" not in sampling_param_overrides(_bad_request_error())
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_dropping_retries_on_chat_completions() -> None:
+    """The config-merge retry flips use_responses_api to False."""
+    model = MagicMock()
+    model.ainvoke = AsyncMock(
+        side_effect=[_status_error(404, "http://llama:8080/v1/responses"), "ok"]
+    )
+
+    result = await ainvoke_dropping_unsupported_params(
+        model, ["hi"], {"configurable": {"use_responses_api": True}}
+    )
+
+    assert result == "ok"
+    retry_config = model.ainvoke.await_args_list[1].args[1]
+    assert retry_config["configurable"]["use_responses_api"] is False
+
+
+def test_responses_model_not_found_is_not_an_api_fallback() -> None:
+    """An unknown model 404s on /responses too; Chat Completions cannot fix it."""
+    request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+    response = httpx.Response(404, request=request)
+    body = {
+        "message": "The model `gpt-6-typo` does not exist.",
+        "type": "invalid_request_error",
+        "code": "model_not_found",
+    }
+    err = openai.NotFoundError(
+        f"Error code: 404 - {{'error': {body}}}",
+        response=response,  # pyright: ignore[reportArgumentType]  # httpx vs openai 3's httpx2
+        body=body,
+    )
+    assert unsupported_sampling_param(err) is None
+    assert "use_responses_api" not in sampling_param_overrides(err)
+
+
+@pytest.mark.asyncio
+async def test_gpt6_tools_error_on_responses_url_sets_both_overrides() -> None:
+    """
+    One error can match both checks; the retry must not raise KeyError.
+
+    A proxy that bridges /v1/responses onto Chat Completions relays the GPT-6
+    tools rejection, which names /v1/responses, for a /responses request.
+    """
+    err = _status_error(
+        400,
+        "https://proxy.local/v1/responses",
+        "Function tools with reasoning_effort are not supported for "
+        "gpt-6-luna in /v1/chat/completions. To use function tools, use "
+        "/v1/responses or set reasoning_effort to 'none'.",
+    )
+    overrides = sampling_param_overrides(err)
+    assert overrides["use_responses_api"] is False
+    assert overrides["reasoning_effort"] == "none"
+
+    model = MagicMock()
+    model.ainvoke = AsyncMock(side_effect=[err, "ok"])
+    result = await ainvoke_dropping_unsupported_params(
+        model, ["hi"], {"configurable": {"use_responses_api": True}}
+    )
+    assert result == "ok"
+
+
+def _responses_404(body: dict[str, Any]) -> Exception:
+    request = httpx.Request(
+        "POST", "https://proxy.local/v1/responses", content=json.dumps(body)
+    )
+    response = httpx.Response(404, request=request)
+    err_body = {"message": "Not Found", "type": "invalid_request_error", "code": None}
+    return openai.NotFoundError(
+        f"Error code: 404 - {{'error': {err_body}}}",
+        response=response,  # pyright: ignore[reportArgumentType]  # httpx vs openai 3's httpx2
+        body=err_body,
+    )
+
+
+_TOOLS = [{"type": "function", "name": "HassTurnOn", "parameters": {}}]
+
+
+def test_chat_downgrade_of_gpt6_tool_call_sends_none_effort() -> None:
+    """A /responses 404 for GPT-6 Luna with tools retries on Chat with "none"."""
+    wrapped = HomeAssistantError("Model invocation failed")
+    wrapped.__cause__ = _responses_404({"model": "gpt-6-luna", "tools": _TOOLS})
+    overrides = sampling_param_overrides(wrapped)
+    assert overrides["use_responses_api"] is False
+    assert overrides["reasoning_effort"] == "none"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"model": "gpt-6-luna"},  # no tools: the default effort is fine
+        {"model": "gpt-6-astra", "tools": _TOOLS},  # rejects "none"
+        {"model": "gpt-5", "tools": _TOOLS},  # not GPT-6
+    ],
+)
+def test_chat_downgrade_keeps_effort_otherwise(body: dict[str, Any]) -> None:
+    """Only GPT-6 Sol/Luna tool calls get "none" on the downgrade."""
+    overrides = sampling_param_overrides(_responses_404(body))
+    assert overrides["use_responses_api"] is False
+    assert overrides["reasoning_effort"] is None
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_dropping_downgrade_then_tools_in_one_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The config-merge retry applies the API switch and "none" together."""
+    model = MagicMock()
+    model.ainvoke = AsyncMock(
+        side_effect=[_responses_404({"model": "gpt-6-sol", "tools": _TOOLS}), "ok"]
+    )
+    with caplog.at_level(logging.WARNING):
+        result = await ainvoke_dropping_unsupported_params(
+            model, ["hi"], {"configurable": {"use_responses_api": True}}
+        )
+    assert result == "ok"
+    assert model.ainvoke.await_count == 2
+    retry = model.ainvoke.await_args_list[1].args[1]["configurable"]
+    assert retry["use_responses_api"] is False
+    assert retry["reasoning_effort"] == "none"
+    assert "use_responses_api=False, reasoning_effort='none'" in caplog.text
+
+
+def test_describe_overrides_names_applied_and_defaulted_params() -> None:
+    """Log text says what the retry sets, not the inverse."""
+    assert describe_overrides(
+        {"use_responses_api": True, "temperature": None, "top_p": None}
+    ) == ("use_responses_api=True; temperature, top_p at provider defaults")
+    assert describe_overrides({}) == "no changes"
