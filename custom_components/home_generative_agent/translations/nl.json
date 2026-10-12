@@ -1,0 +1,519 @@
+{
+  "common": {
+    "feature_overwrite_warning": "⚠️ Er zijn al functies geconfigureerd. Als je **Basisconfiguratie** kiest, worden je huidige providertoewijzingen overschreven met de aanbevolen standaardwaarden.",
+    "sentinel_overwrite_warning": "⚠️ Sentinel is al geconfigureerd. Als je **Basisconfiguratie** kiest, worden je huidige instellingen overschreven met de aanbevolen standaardwaarden. Je uitgesloten entiteiten en camera-ingangkoppelingen blijven behouden.",
+    "no_model_provider_notice": "Er is geen modelprovider geconfigureerd. Zodra er een beschikbaar is, wordt een standaardmodel toegewezen.",
+    "no_capable_model_provider_notice": "Geen van je modelproviders ondersteunt deze functie. Voeg nog een modelprovider van een ondersteund type toe - je kunt voor elke dienst die je gebruikt een provider toevoegen, en elke functie kan naar een andere verwijzen.",
+    "supported_provider_types_label": "Hier ondersteund:"
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Generative Agent",
+        "description": "De standaardfuncties worden aangemaakt. Voer daarna **Instellen** uit om functies en de database in te schakelen en te configureren, en voeg vervolgens een **Modelprovider** toe."
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan de dienst niet bereiken. Controleer de sleutels/URL's en probeer het opnieuw.",
+      "invalid_auth": "Ongeldige API-sleutel.",
+      "invalid_pin": "De PIN moet uit 4-10 cijfers bestaan.",
+      "tool_excluded_and_included": "Een tool kan niet tegelijk uitgesloten en altijd opgenomen zijn. Verwijder hem uit een van de twee lijsten.",
+      "unknown": "Onverwachte fout."
+    }
+  },
+  "config_subentries": {
+    "database": {
+      "entry_type": "dienst",
+      "abort": {
+        "reconfigure_successful": "Databaseconfiguratie bijgewerkt."
+      },
+      "initiate_flow": {
+        "reconfigure": "Database opnieuw configureren",
+        "user": "Database instellen"
+      },
+      "step": {
+        "set_options": {
+          "title": "Database instellen",
+          "description": "Voer de benodigde parameters voor de database in",
+          "data": {
+            "username": "Gebruikersnaam database",
+            "password": "Wachtwoord database",
+            "host": "Databasehost",
+            "port": "Databasepoort (optioneel)",
+            "db_name": "Databasenaam",
+            "db_params": "Verbindingsparameters database (optioneel)"
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kan geen verbinding maken met de database. Controleer de database-instellingen en probeer het opnieuw.",
+        "invalid_auth": "Ongeldige autorisatie.",
+        "invalid_uri": "De URI kon niet worden gegenereerd.",
+        "unknown": "Onverwachte fout."
+      }
+    },
+    "model_provider": {
+      "entry_type": "dienst",
+      "abort": {
+        "reconfigure_successful": "Modelprovider bijgewerkt."
+      },
+      "initiate_flow": {
+        "reconfigure": "Modelprovider opnieuw configureren",
+        "user": "Modelprovider toevoegen"
+      },
+      "step": {
+        "deployment": {
+          "title": "Implementatie",
+          "description": "Kies waar deze provider draait. **Edge** wordt zelf gehost op je eigen netwerk (Ollama, OpenAI Compatible). **Cloud** is een gehoste API (OpenAI, Gemini, Anthropic). Deze keuze bepaalt alleen welke providertypes de volgende stap aanbiedt - je kunt zoveel providers van beide soorten toevoegen als je wilt en elke functie naar een andere laten verwijzen.",
+          "data": {
+            "deployment": "Implementatie"
+          }
+        },
+        "provider": {
+          "title": "Provider",
+          "description": "Selecteer een providertype en een naam. Voeg voor elke dienst die je wilt gebruiken een aparte provider toe - bijvoorbeeld Anthropic voor Gesprek en Gemini voor Embeddings, omdat Anthropic geen embeddings-endpoint heeft.",
+          "data": {
+            "provider_type": "Provider",
+            "name": "Providernaam"
+          },
+          "data_description": {
+            "name": "Laat de naam leeg om de provider te vernoemen naar het gekozen providertype."
+          }
+        },
+        "settings": {
+          "title": "Providerinstellingen",
+          "description": "Configureer het endpoint of de inloggegevens van de provider.",
+          "data": {
+            "base_url": "Basis-URL",
+            "api_key": "API-sleutel",
+            "gemini_api_key": "Gemini API-sleutel",
+            "anthropic_api_key": "Anthropic API-sleutel"
+          },
+          "data_description": {
+            "api_key": "Vereist voor OpenAI. Laat dit bij OpenAI Compatible-providers leeg of vul 'none' in als het endpoint geen authenticatie vereist."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kan de provider niet bereiken.",
+        "invalid_auth": "Ongeldige inloggegevens.",
+        "unknown": "Onverwachte fout."
+      }
+    },
+    "stt_provider": {
+      "entry_type": "dienst",
+      "abort": {
+        "reconfigure_successful": "STT-provider bijgewerkt."
+      },
+      "initiate_flow": {
+        "reconfigure": "STT-provider opnieuw configureren",
+        "user": "STT-provider toevoegen"
+      },
+      "step": {
+        "provider": {
+          "title": "Spraak-naar-tekst-provider",
+          "description": "Selecteer een providertype en een naam.",
+          "data": {
+            "provider_type": "Provider",
+            "name": "Providernaam"
+          }
+        },
+        "credentials": {
+          "title": "Inloggegevens",
+          "description": "Kies hoe de STT-provider zich authenticeert. Lokale providers maken in plaats daarvan verbinding met de URL van een OpenAI-compatibele server.",
+          "data": {
+            "openai_provider_subentry_id": "OpenAI-modelprovider hergebruiken",
+            "api_key": "API-sleutel",
+            "base_url": "Server-URL"
+          },
+          "data_description": {
+            "api_key": "Vereist voor OpenAI. Optioneel voor lokale servers die geen authenticatie nodig hebben.",
+            "base_url": "OpenAI-compatibel endpoint van de lokale STT-server, bijv. een Speaches-instantie. Een ontbrekend /v1-achtervoegsel wordt automatisch toegevoegd."
+          }
+        },
+        "model": {
+          "title": "Model en geavanceerde opties",
+          "description": "Selecteer een model en optionele geavanceerde instellingen.",
+          "data": {
+            "model_name": "Model",
+            "language": "Taal (optioneel)",
+            "prompt": "Prompt (optioneel)",
+            "temperature": "Temperatuur (optioneel)",
+            "translate": "Vertalen naar Engels",
+            "response_format": "Antwoordformaat",
+            "request_format": "Verzoekformaat",
+            "extra_body": "Extra verzoekbody (JSON, optioneel)"
+          },
+          "data_description": {
+            "request_format": "Hoe de audio wordt verzonden. Multipart-upload is de eigen vorm van OpenAI en werkt overal. JSON met base64-audio is de native transcriptievorm van OpenRouter - kies dit alleen als je server het documenteert. Deze vorm heeft geen vertaal-endpoint en negeert het veld Prompt hierboven.",
+            "extra_body": "Een JSON-object dat wordt samengevoegd met de verzoekbody, voor velden die HGA niet aanbiedt. Bij OpenRouter horen hier provideropties zoals keyword biasing, en die vereisen het JSON-verzoekformaat. Zie het STT-gedeelte van de documentatie voor een uitgewerkt voorbeeld. Laat leeg als je het niet zeker weet."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kan de provider niet bereiken.",
+        "invalid_auth": "Ongeldige inloggegevens.",
+        "invalid_model": "Selecteer een geldig model.",
+        "not_supported": "Provider wordt nog niet ondersteund.",
+        "unknown": "Onverwachte fout.",
+        "invalid_extra_body": "De extra verzoekbody moet een JSON-object zijn.",
+        "reserved_extra_body_key": "De extra verzoekbody kan stream, file of input_audio niet instellen - die worden door Home Generative Agent beheerd."
+      }
+    },
+    "tts_provider": {
+      "entry_type": "dienst",
+      "abort": {
+        "reconfigure_successful": "TTS-provider bijgewerkt."
+      },
+      "initiate_flow": {
+        "reconfigure": "TTS-provider opnieuw configureren",
+        "user": "TTS-provider toevoegen"
+      },
+      "step": {
+        "provider": {
+          "title": "Tekst-naar-spraak-provider",
+          "description": "Selecteer een providertype en een naam.",
+          "data": {
+            "provider_type": "Provider",
+            "name": "Providernaam"
+          }
+        },
+        "credentials": {
+          "title": "Inloggegevens",
+          "description": "Kies hoe de TTS-provider zich authenticeert. Lokale providers maken in plaats daarvan verbinding met de URL van een OpenAI-compatibele server.",
+          "data": {
+            "openai_provider_subentry_id": "OpenAI-modelprovider hergebruiken",
+            "api_key": "API-sleutel",
+            "base_url": "Server-URL"
+          },
+          "data_description": {
+            "api_key": "Vereist voor OpenAI. Optioneel voor lokale servers die geen authenticatie nodig hebben.",
+            "base_url": "OpenAI-compatibel endpoint van de lokale TTS-server, bijv. een Speaches-instantie. Een ontbrekend /v1-achtervoegsel wordt automatisch toegevoegd."
+          }
+        },
+        "model": {
+          "title": "Model, stem en geavanceerde opties",
+          "description": "Selecteer een model en een stem, en optionele geavanceerde instellingen.",
+          "data": {
+            "model_name": "Model",
+            "voice": "Stem",
+            "speed": "Snelheid",
+            "instructions": "Steminstructies (optioneel)"
+          },
+          "data_description": {
+            "voice": "OpenAI: alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer of verse. Lokaal: een stem-ID die het model van de server levert, bijv. af_heart voor Kokoro.",
+            "speed": "Vermenigvuldigingsfactor voor de afspeelsnelheid, 0,25 tot 4,0. 1,0 is normale snelheid.",
+            "instructions": "Hoe de stem moet klinken, bijv. toon of tempo. Wordt alleen gebruikt door OpenAI gpt-4o-mini-tts-modellen; elders genegeerd."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kan de provider niet bereiken.",
+        "invalid_auth": "Ongeldige inloggegevens.",
+        "invalid_model": "Selecteer een geldig model.",
+        "not_supported": "Provider wordt nog niet ondersteund.",
+        "unknown": "Onverwachte fout."
+      }
+    },
+    "sentinel": {
+      "entry_type": "dienst",
+      "abort": {
+        "reconfigure_successful": "Sentinel-configuratie bijgewerkt."
+      },
+      "error": {
+        "invalid_camera_entry_links": "Moet een JSON-object zijn dat camera-entiteit-ID's koppelt aan lijsten met entiteit-ID's van ingangen, bijv. een sleutel \"camera.driveway\" met de waarde [\"lock.front_door\"].",
+        "invalid_pin": "De PIN moet uit 4-10 cijfers bestaan.",
+        "quiet_hours_incomplete": "Stel zowel het begin als het einde van de stille uren in (of zet beide op Uitgeschakeld).",
+        "invalid_quiet_hours": "Stille uren moeten lokale uren tussen 0 en 23 zijn.",
+        "invalid_rule_entity_exclusions": "Moet een JSON-object zijn dat een anomalietype (of \"*\" voor alle types) koppelt aan lijsten met entiteit-ID's of glob-patronen (alleen de jokertekens * en ?, kleine letters zoals in entiteit-ID's), die elk een punt en ten minste één letterlijk teken bevatten, bijv. een sleutel \"appliance_power_duration\" met de waarde [\"sensor.ac_power\"], of een sleutel \"camera_entry_unsecured\" met de waarde [\"camera.map_*\"]. Items die alles matchen, zoals \"*\" of \"*.*\", zijn niet toegestaan — gebruik in plaats daarvan de typesleutel \"*\"."
+      },
+      "initiate_flow": {
+        "reconfigure": "Sentinel opnieuw configureren",
+        "user": "Sentinel configureren"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Sentinel instellen",
+          "description": "Kies hoe je de Sentinel-bewaking wilt configureren.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Type configuratie"
+          }
+        },
+        "basic_settings": {
+          "title": "Sentinel",
+          "description": "Configureer de belangrijkste Sentinel-instellingen. Alle andere opties gebruiken de aanbevolen standaardwaarden.",
+          "data": {
+            "sentinel_enabled": "Anomaliemeldingen inschakelen",
+            "sentinel_daily_digest_enabled": "Dagelijkse samenvatting inschakelen",
+            "sentinel_daily_digest_time": "Tijdstip dagelijkse samenvatting (UU:MM:SS)",
+            "critical_action_pin": "PIN voor niveauverhoging (optioneel, 4-10 cijfers)",
+            "notify_service": "Meldingsdienst (optioneel)"
+          }
+        },
+        "settings": {
+          "title": "Sentinel",
+          "description": "Configureer proactieve Sentinel-bewaking en -detectie.",
+          "data": {
+            "sentinel_enabled": "Anomaliemeldingen inschakelen",
+            "sentinel_interval_seconds": "Sentinel-interval (seconden)",
+            "sentinel_cooldown_minutes": "Sentinel-afkoelperiode per type (minuten)",
+            "sentinel_entity_cooldown_minutes": "Sentinel-afkoelperiode per entiteit (minuten)",
+            "sentinel_pending_prompt_ttl_minutes": "TTL openstaande prompt (minuten)",
+            "sentinel_discovery_enabled": "Detectie inschakelen (vereist anomaliemeldingen)",
+            "sentinel_discovery_interval_seconds": "Detectie-interval (seconden)",
+            "sentinel_discovery_max_records": "Maximaal aantal te bewaren detectierecords",
+            "sentinel_triage_enabled": "LLM-triage van bevindingen inschakelen",
+            "sentinel_triage_timeout_seconds": "Time-out triage (seconden)",
+            "sentinel_response_language": "Taal van uitleg bij bevindingen (optioneel)",
+            "sentinel_baseline_enabled": "Verzamelen van basislijn inschakelen (vereist anomaliemeldingen)",
+            "sentinel_baseline_update_interval_minutes": "Update-interval basislijn (minuten)",
+            "sentinel_baseline_freshness_threshold_seconds": "Actualiteitsdrempel basislijn (seconden)",
+            "sentinel_baseline_weekly_patterns": "Basislijnen per weekdag inschakelen (minder valse positieven in het weekend)",
+            "sentinel_baseline_dow_min_samples": "Minimum aantal metingen weekdagbasislijn (weken aan gegevens per tijdvak)",
+            "sentinel_baseline_min_samples": "Minimum aantal metingen basislijn voordat afwijkingsmeldingen afgaan",
+            "sentinel_baseline_sustained_minutes": "Filter voor cyclische belasting: minuten boven de drempel voor een melding (0 = uitgeschakeld)",
+            "sentinel_appliance_power_threshold_w": "Regel apparaatvermogen: vermogensdrempel (W)",
+            "sentinel_appliance_duration_min": "Regel apparaatvermogen: duur voor een melding (minuten)",
+            "sentinel_network_enabled": "Beveiligingsaudit van netwerk en Home Assistant inschakelen",
+            "sentinel_network_offline_device_min": "Offline-drempel beveiligingsapparaat (minuten)",
+            "sentinel_network_unknown_device_grace_min": "Respijtperiode nieuw netwerkapparaat (minuten)",
+            "sentinel_network_guest_idle_days": "Inactiviteitsdrempel gast-wifi (dagen)",
+            "sentinel_network_audit_share_details": "Details van de beveiligingsaudit delen met het chatmodel",
+            "sentinel_ha_token_stale_days": "Drempel voor verouderde langlevende tokens (dagen)",
+            "sentinel_auth_ip_retention_days": "Bewaartermijn adressen in authenticatie-inventaris (dagen)",
+            "explain_enabled": "LLM-uitleg bij Sentinel-bevindingen inschakelen",
+            "sentinel_require_pin_for_level_increase": "PIN vereisen voor verhoging van het autonomieniveau",
+            "sentinel_daily_digest_enabled": "Dagelijkse samenvatting inschakelen",
+            "sentinel_daily_digest_time": "Tijdstip dagelijkse samenvatting (UU:MM:SS)",
+            "sentinel_quiet_hours_start": "Begin stille uren (onderdrukt geselecteerde ernstniveaus)",
+            "sentinel_quiet_hours_end": "Einde stille uren",
+            "sentinel_quiet_hours_severities": "Onderdrukte ernstniveaus tijdens stille uren",
+            "sentinel_camera_entry_links": "Camera-ingangkoppelingen (JSON, optioneel)",
+            "sentinel_rule_entity_exclusions_all": "Entiteiten uitsluiten van alle Sentinel-regels (optioneel)",
+            "sentinel_rule_entity_exclusions": "Geavanceerd: entiteituitsluitingen per regel (JSON, optioneel)",
+            "critical_action_pin": "Sentinel-PIN voor niveauverhoging (optioneel)",
+            "notify_service": "Sentinel-meldingsdienst (optioneel)"
+          },
+          "data_description": {
+            "explain_enabled": "Laat een model de tekst van elke melding schrijven in plaats van de vaste samenvatting van de regel te gebruiken. Dit verandert alleen hoe een melding leest -- nooit of je hem krijgt; dat bepaalt de LLM-triage hierboven. Het kost één modelaanroep per daadwerkelijk verzonden melding en draait na de triage, dus een onderdrukte bevinding komt er nooit aan toe. De beveiligingsmeldingen voor Home Assistant en netwerk en de meldingen bij het uitschakelen van het alarm behouden altijd hun exacte tekst en worden niet beïnvloed. Stel hieronder de taal van uitleg bij bevindingen in om die tekst in een andere taal te laten schrijven. Standaard uit.",
+            "sentinel_response_language": "Taal voor de door de LLM geschreven uitleg bij bevindingen in meldingen, bijv. 'Czech'. Laat leeg voor Engels. Titel/samenvatting van detectiekandidaten en beslissing/reason_code/samenvatting van de triage worden niet beïnvloed -- die worden door code verwerkt en blijven altijd in het Engels.",
+            "sentinel_rule_entity_exclusions_all": "Kies entiteiten die Sentinel overal moet negeren -- bijv. het sjabloonslot van een touchpanel dat alleen de status van een andere entiteit weerspiegelt. Uitgesloten entiteiten worden uit de bevindingen van elke regel verwijderd en wekken Sentinel niet meer, dus een echte anomalie waarbij ze betrokken zijn wordt pas bij de volgende peiling opgemerkt (standaard 5 minuten). Sluit geen camera, slot of alarmpaneel uit waarvan je nog steeds directe meldingen wilt.",
+            "sentinel_rule_entity_exclusions": "Om een entiteit van slechts één specifieke regel uit te sluiten (niet van allemaal), en voor glob-patronen zoals camera.map_*, die de kiezer hierboven niet kan bevatten. Verwacht een JSON-object met anomalietypes als sleutels en lijsten met entiteit-ID's als waarden; de sleutel \"*\" betekent alle regels. Zie de Sentinel-documentatie voor voorbeelden. De meeste mensen hebben dit niet nodig -- gebruik in plaats daarvan de kiezer hierboven.",
+            "sentinel_triage_enabled": "Voert per bevinding één extra LLM-aanroep uit die meldingen met weinig waarde kan onderdrukken. Vereist een geconfigureerd chatmodel en Sentinel-autonomieniveau 1 of hoger -- op niveau 0 heeft de schakelaar geen effect. Het model kan een bevinding alleen onderdrukken of doorlaten -- het wijzigt er nooit een, maakt er nooit een aan en onderneemt er nooit actie op, en bij een fout of time-out wordt de bevinding doorgelaten. Standaard uit.",
+            "sentinel_triage_timeout_seconds": "Hoe lang er op de triage-aanroep wordt gewacht voordat de bevinding ongewijzigd wordt doorgelaten.",
+            "sentinel_network_enabled": "Voert de beveiligingsregels voor Home Assistant en netwerk uit bij elke Sentinel-cyclus en laat de chatagent ze op verzoek uitvoeren: beheerdersaccounts en toegangstokens, entiteiten die zijn blootgesteld aan spraakassistenten, add-on-poorten, radiokoppelingen, UPnP op de router en, met een routerintegratie, de apparaten op je netwerk. Er wordt niets op het netwerk gescand -- elk gegeven komt uit wat Home Assistant al weet. Als dit uit staat, worden deze regels als inactief weergegeven op de gezondheidssensor en meldt de audittool dat ze zijn uitgeschakeld. Standaard aan.",
+            "sentinel_network_offline_device_min": "Hoe lang een slot, alarmpaneel of camera onbeschikbaar mag zijn voordat Sentinel het meldt. Standaard 30 minuten.",
+            "sentinel_network_unknown_device_grace_min": "Aantal minuten wachten nadat een nieuw apparaat voor het eerst op je netwerk is gezien voordat Sentinel het meldt, zodat een apparaat dat komt en gaat toch wordt gemeld, maar nooit op het moment dat het verschijnt. Vereist een routerintegratie. Standaard 5; 0 meldt direct bij de eerste waarneming.",
+            "sentinel_network_guest_idle_days": "Aantal dagen dat de gast-wifi ingeschakeld mag blijven zonder verbonden gast voordat Sentinel voorstelt hem uit te schakelen. Vereist een routerintegratie die het gastnetwerk rapporteert (momenteel eero). Standaard 7.",
+            "sentinel_network_audit_share_details": "Als dit aan staat, geeft de beveiligingsaudit van de chatagent het chatmodel de details van de bevindingen (apparaatnamen, poorten, tokennamen), zodat het ze kan uitleggen. Als het uit staat, krijgt het model alleen aantallen, ernstniveaus en vaste titels, en gaat het volledige rapport naar een persistente melding in Home Assistant wanneer een beheerder erom heeft gevraagd (een spraaksatelliet of een account zonder beheerdersrechten krijgt alleen de samenvatting). Netwerkadressen worden in beide gevallen afgeschermd. Standaard aan.",
+            "sentinel_ha_token_stale_days": "Leeftijd in dagen waarboven een langlevend toegangstoken wordt gemeld. Home Assistant registreert niet wanneer een langlevend token wordt gebruikt, dus de leeftijd is het enige beschikbare gegeven en de melding stelt voor oude tokens te vervangen. Standaard 90.",
+            "sentinel_auth_ip_retention_days": "Hoe lang een adres dat een toegangstoken gebruikt in de inventaris van de beveiligingsaudit blijft. Adressen worden opgeslagen als eenrichtingshashes, nooit leesbaar, en er worden er maximaal 20 per token bewaard. Standaard 90 dagen."
+          }
+        }
+      }
+    },
+    "feature": {
+      "entry_type": "dienst",
+      "abort": {
+        "reconfigure_successful": "Functie bijgewerkt.",
+        "setup_complete": "Instellen voltooid.",
+        "no_provider_for_basic_setup": "Er is geen modelprovider geconfigureerd. Voeg eerst een **Modelprovider** toe en probeer het instellen daarna opnieuw."
+      },
+      "error": {
+        "no_providers": "Er zijn geen modelproviders geconfigureerd.",
+        "cannot_connect": "Kan geen verbinding maken met de database. Controleer de instellingen en probeer het opnieuw.",
+        "invalid_auth": "Ongeldige autorisatie.",
+        "invalid_uri": "De URI kon niet worden gegenereerd.",
+        "unknown": "Onverwachte fout."
+      },
+      "initiate_flow": {
+        "reconfigure": "Functie opnieuw configureren",
+        "user": "Instellen"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Instellen",
+          "description": "Kies een type configuratie. Basisconfiguratie schakelt alle functies in met de aanbevolen standaardwaarden. Met geavanceerde configuratie heb je volledige controle over elke functie.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Type configuratie"
+          }
+        },
+        "setup_status": {
+          "title": "Instellen voltooid",
+          "description": "Het instellen is klaar.\n\n**Ingeschakelde functies:** {features_enabled}{skipped_section}\n\n**Database:** {database_status}\n\n**Volgende stappen:**\n- Voer **Sentinel configureren** uit om anomaliebewaking in te schakelen.\n- Voeg een **STT-provider** toe voor spraakinvoer.\n- Ga naar **Instellingen → Spraakassistenten** om Home Generative Agent als je spraakassistent toe te voegen."
+        },
+        "feature_enable": {
+          "title": "Functies instellen",
+          "description": "**Gesprek** is altijd ingeschakeld. Schakel hieronder optionele functies in of uit.",
+          "data": {
+            "camera_image_analysis": "Analyse van camerabeelden",
+            "conversation_summary": "Gesprekssamenvatting",
+            "embedding": "Embeddings"
+          },
+          "data_description": {
+            "embedding": "Embeddingmodel voor semantisch geheugen en het zoeken naar tools. Als dit uit staat, wordt de provider automatisch gekozen (de provider voor Gesprek als die embeddings ondersteunt)."
+          }
+        },
+        "feature_provider": {
+          "title": "Modelprovider kiezen",
+          "description": "Selecteer een modelprovider voor {feature_name}.",
+          "data": {
+            "model_provider_id": "Modelprovider"
+          }
+        },
+        "feature_model": {
+          "title": "{feature_name}",
+          "description": "Configureer de modelinstellingen voor deze functie. {provider_notice}",
+          "data": {
+            "model_name": "Model",
+            "fallback_provider_ids": "Terugvalproviders",
+            "temperature": "Temperatuur",
+            "keepalive_s": "Ollama keepalive (seconden of Nooit ontladen (-1))",
+            "context_size": "Ollama-contextgrootte (tokens)",
+            "reasoning": "Denken / redeneren",
+            "reasoning_budget": "Denkbudget (tokens)",
+            "openai_api": "OpenAI API"
+          },
+          "data_description": {
+            "fallback_provider_ids": "Geordende lijst met terugvalproviders. De eerste beschikbare provider wordt gebruikt als de primaire provider faalt.",
+            "reasoning": "Bepaalt het denken van het geselecteerde chatmodel. Providerstandaard laat het gedrag van de server/het model ongewijzigd; Uit en Aan stellen het expliciet in; inspanningsniveaus worden doorgegeven aan providers die ze ondersteunen. Instellingen worden per modelnaam onthouden, dus bij het wisselen van model wordt de configuratie van elk model hersteld.",
+            "reasoning_budget": "Optioneel budget voor denktokens bij providers die dat ondersteunen (OpenAI-compatibele servers zoals llama.cpp, Gemini, Anthropic). Laat leeg voor de standaardwaarde van de provider.",
+            "openai_api": "Welke OpenAI API dit model gebruikt. Automatisch kiest de beste voor het model: de Responses API voor GPT-6-chatmodellen (die kunnen tools en redeneren niet combineren via Chat Completions) en voor OpenAI-modellen die alleen daar worden aangeboden (codex, pro), en anders Chat Completions. Kies er expliciet een om dit te overschrijven, bijvoorbeeld de Responses API op een OpenAI-compatibele server die deze ondersteunt. Als de gekozen API een verzoek niet kan verwerken, wordt de aanroep automatisch opnieuw geprobeerd (Chat Completions met redeneren uitgeschakeld voor GPT-6-toolaanroepen, of Chat Completions wanneer een server geen Responses API heeft). De keuze wordt per modelnaam onthouden."
+          }
+        },
+        "database": {
+          "title": "Database instellen",
+          "description": "Voer de benodigde parameters voor de database in.",
+          "data": {
+            "username": "Gebruikersnaam database",
+            "password": "Wachtwoord database",
+            "host": "Databasehost",
+            "port": "Databasepoort (optioneel)",
+            "db_name": "Databasenaam",
+            "db_params": "Verbindingsparameters database (optioneel)"
+          }
+        },
+        "instructions": {
+          "title": "Modelprovider toevoegen",
+          "description": "Er is nog geen modelprovider geconfigureerd. Voeg er een toe via **Modelprovider**."
+        }
+      }
+    }
+  },
+  "selector": {
+    "setup_mode": {
+      "options": {
+        "basic": "Basisconfiguratie",
+        "advanced": "Geavanceerde configuratie"
+      }
+    },
+    "db_params": {
+      "fields": {
+        "key": {
+          "name": "Sleutel",
+          "description": "Naam van de verbindingsparameter (bijvoorbeeld: sslmode, connect_timeout)"
+        },
+        "value": {
+          "name": "Waarde",
+          "description": "Waarde van de verbindingsparameter (bijvoorbeeld: disable, 30)"
+        }
+      }
+    },
+    "stt_request_format": {
+      "options": {
+        "multipart": "Multipart-upload (standaard)",
+        "json_base64": "JSON met base64-audio"
+      }
+    },
+    "voice_ack_timing": {
+      "options": {
+        "turn_start": "Zodra de agent begint",
+        "tool_call": "Voor de eerste toolaanroep"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_config_entry": {
+      "message": "Ongeldig configuratie-item opgegeven. Ontvangen: {config_entry}"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opties voor Home Generative Agent",
+        "description": "Configureer algemeen gedrag en prompts.",
+        "data": {
+          "face_api_url": "API-URL voor gezichtsherkenning (optioneel)",
+          "prompt": "Instructies",
+          "vlm_response_language": "Taal van camerabeschrijvingen (optioneel)",
+          "vlm_prompt_extra": "Aanvullende instructies voor camera-analyse (optioneel)",
+          "llm_hass_api": "Home Assistant bedienen",
+          "video_analyzer_mode": "Modus video-analyse",
+          "video_analyzer_uniqueness_enabled": "Framefilter op basis van perceptuele hash inschakelen (dHash)",
+          "video_analyzer_event_recording_enabled": "Ring-gebeurtenisopnamen analyseren (ring-mqtt, Ring Protect)",
+          "video_analyzer_motion_camera_map": "Bewegingssensor → camera-overschrijvingen (optioneel)",
+          "notify_service": "Meldingsdienst video-analyse (optioneel)",
+          "video_analyzer_notification_cooldown_s": "Afkoelperiode cameramelding (seconden)",
+          "video_analyzer_house_notification_cooldown_s": "Afkoelperiode huismelding (seconden)",
+          "face_recognition": "Gezichtsherkenning inschakelen",
+          "manage_context_with_tokens": "Methode voor contextbeheer",
+          "max_tokens_in_context": "Maximaal aantal tokens in chatcontext",
+          "max_messages_in_context": "Maximaal aantal berichten in chatcontext",
+          "critical_action_pin_enabled": "PIN voor kritieke acties vereisen",
+          "critical_action_pin": "PIN voor kritieke acties (vereist om gevoelige apparaten te ontgrendelen/in te schakelen/te openen)",
+          "schema_first_yaml": "Schema-first JSON voor YAML-verzoeken",
+          "stt_filters_section": "Filters voor spraakinvoer",
+          "stt_hallucination_patterns": "Genegeerde STT-tekstfragmenten",
+          "stt_hallucination_exact_patterns": "Genegeerde exacte STT-zinnen",
+          "voice_tool_acknowledgement": "Gesproken bevestiging (alleen spraak)",
+          "voice_tool_acknowledgement_timing": "Wanneer de bevestiging wordt uitgesproken",
+          "tool_retrieval_limit": "Limiet voor het ophalen van tools",
+          "tool_relevance_threshold": "Relevantiedrempel voor tools",
+          "tool_exclusions": "Uitgesloten tools",
+          "tool_inclusions": "Altijd opgenomen tools"
+        },
+        "data_description": {
+          "prompt": "Geef aan hoe de LLM moet reageren. Dit kan een sjabloon zijn.",
+          "vlm_response_language": "Taal voor VLM-beschrijvingen van camerabeelden, bijv. 'Czech'. Laat leeg voor Engels. Het interne antwoord 'Scene unchanged.' blijft altijd in het Engels.",
+          "vlm_prompt_extra": "Extra instructies die aan de VLM-prompt voor camera-analyse worden toegevoegd, bijv. 'Negeer auto's op de oprit'. Ze vervangen nooit de ingebouwde regels.",
+          "video_analyzer_notification_cooldown_s": "0 schakelt dit uit. Nadat een cameramelding geluid heeft gemaakt, vervangen latere meldingen van die camera binnen dit aantal seconden (maximaal 600) dezelfde melding stil door het nieuwste bijschrift en de nieuwste afbeelding, in plaats van opnieuw geluid te maken. Als gezichtsherkenning aan staat, maakt de eerste onbekende persoon in die periode nog steeds geluid. Werkt alleen met één meldingsdienst van de companion-app (notify.mobile_app_...).",
+          "video_analyzer_house_notification_cooldown_s": "0 schakelt dit uit. Eén gebeurtenis die door meerdere camera's wordt gezien, laat elke camera een melding sturen. Nadat een cameramelding geluid heeft gemaakt, plaatst een melding van een willekeurige camera binnen dit aantal seconden (maximaal 60) nog steeds een eigen kaart, maar stil, en die camera blijft daarna stil gedurende zijn afkoelperiode voor cameramelding, of dit aantal seconden als dat langer is, gerekend vanaf dat geluid. Als de camera-afkoelperiode uit staat, is elke camera, inclusief degene die geluid maakte, dit aantal seconden stil. Als gezichtsherkenning aan staat, maakt de eerste onbekende persoon in die periode nog steeds geluid. Begin rond 15 seconden: de video van elke camera wordt apart geanalyseerd, dus één gebeurtenis kan de camera's 10 tot 30 seconden na elkaar bereiken. Werkt alleen met één meldingsdienst van de companion-app (notify.mobile_app_...); alleen getest op iOS.",
+          "schema_first_yaml": "Indien ingeschakeld, worden YAML-verzoeken beantwoord met strikte JSON die naar YAML wordt omgezet.",
+          "stt_hallucination_patterns": "Eén tekstfragment per regel. Als een STT-transcriptie een van deze items bevat, wordt deze genegeerd voordat de LLM draait. Hoofdletters worden genegeerd.",
+          "stt_hallucination_exact_patterns": "Eén zin per regel. Als de volledige STT-transcriptie gelijk is aan een van deze items, wordt deze genegeerd voordat de LLM draait. Hoofdletters worden genegeerd.",
+          "voice_tool_acknowledgement": "Wordt door een spraaksatelliet uitgesproken terwijl de agent aan een verzoek werkt, zodat een trage vraag niet met stilte wordt beantwoord (bijvoorbeeld \"Een ogenblik.\"). Alleen bij spraakbeurten, maximaal één keer per antwoord; de volgende optie bepaalt wanneer. Vereist de tekst-naar-spraak-engine van HGA of een andere streamende engine. Schrijf het in de taal van je assistent. Laat leeg om dit uit te schakelen.",
+          "voice_tool_acknowledgement_timing": "Zodra de agent begint dekt de hele wachttijd, inclusief de tijd die een lokaal model nodig heeft voor het eerste woord, maar wordt ook uitgesproken vóór een antwoord dat geen tools nodig heeft (kies dus een neutrale formulering zoals \"Een ogenblik.\"). Voor de eerste toolaanroep wordt alleen uitgesproken bij beurten die tools gebruiken, nadat het model is begonnen.",
+          "tool_retrieval_limit": "Het maximale aantal tools dat wordt opgehaald op basis van semantische gelijkenis met de vraag van de gebruiker.",
+          "tool_relevance_threshold": "De minimale semantische gelijkenisscore (0,0 tot 1,0) die een tool nodig heeft om te worden opgehaald.",
+          "tool_exclusions": "Tools die je hier aanvinkt, worden nooit aan het model aangeboden en nooit uitgevoerd, zelfs niet als het er op naam om vraagt. Laat leeg om elke tool van elke geselecteerde API beschikbaar te maken. Tools die een server later toevoegt, zijn standaard beschikbaar.",
+          "tool_inclusions": "Tools die je hier aanvinkt, worden altijd aan het model aangeboden: ze worden na het vectorgebaseerd ophalen van tools toegevoegd, bovenop de ophaallimiet. Handig voor algemene tools, zoals zoeken op het web, die door zoeken op gelijkenis mogelijk niet worden geselecteerd. Het model beslist nog steeds of het ze gebruikt. Een tool kan niet tegelijk uitgesloten en altijd opgenomen zijn.",
+          "video_analyzer_uniqueness_enabled": "Slaat visueel vrijwel identieke frames over vóór de VLM-analyse. Waarschuwing: als je dit inschakelt, verdwijnt de bewegingscontext tussen frames die het samenvattingsmodel gebruikt om beweging te beschrijven. Schakel dit alleen in als een statische scène overmatig veel duplicaten oplevert en je accepteert dat de continuïteit van beweging verloren kan gaan.",
+          "video_analyzer_event_recording_enabled": "Wanneer een ring-mqtt event_select-entiteit een ondertekende recordingUrl met een nieuwe eventId publiceert, wordt de MP4 van de gebeurtenis gedownload, worden er met ffmpeg maximaal 8 frames uit gehaald en worden die geanalyseerd in plaats van de bewaarde interval-snapshot, die bij camera's op batterij tot 10 minuten ouder kan zijn dan de gebeurtenis. Vereist een Ring Protect-abonnement (camera's zonder recordingUrl blijven snapshots gebruiken) en het ffmpeg-programma dat in de officiële Home Assistant-image zit.",
+          "video_analyzer_motion_camera_map": "Eén overschrijving per regel: binary_sensor.X_motion: camera.Y — gebruik dit wanneer de automatische koppeling de verkeerde camera kiest. Laat leeg om te vertrouwen op koppeling op basis van apparaat en naam."
+        }
+      }
+    }
+  },
+  "issues": {
+    "database_not_configured": {
+      "title": "Home Generative Agent draait zonder database",
+      "description": "Dit item heeft geen Database-subitem en draait daarom alleen met opslag in het geheugen. De gespreksgeschiedenis gaat bij elke herlaadbeurt of herstart verloren, langetermijngeheugen (gesprekssamenvattingen, herinneren van camera-activiteit, toestemming voor het inschakelen van het alarm) en gezichtsherkenning (de personengalerij) zijn niet beschikbaar, en de basislijn-anomaliedetector van Sentinel staat uit. Sentinel-regels, meldingen en het auditlogboek blijven werken.\n\nHet Database-subitem wordt aangemaakt via **+ Instellen** op de integratiepagina: **Basis** maakt het aan met de aanbevolen standaardwaarden, en **Geavanceerd** eindigt met de stap **Database instellen**, die de verbinding test voordat er wordt opgeslagen. Deze situatie ontstaat doordat **+ Instellen** niet is uitgevoerd na het toevoegen van de integratie, of doordat de geavanceerde wizard bij die laatste stap is gesloten (de functies worden daarvoor al opgeslagen, dus het item wordt nog steeds geladen).\n\nOm dit op te lossen open je **Instellingen → Apparaten & diensten → Home Generative Agent**, klik je op **+ Instellen**, kies je **Geavanceerd**, doorloop je de functies en vul je het formulier **Database instellen** in. Met de meegeleverde app PostgreSQL met pgvector zijn de standaardwaarden (`localhost`, poort `5432`, database `ha_db`, gebruiker `ha_user`) correct. Deze melding verdwijnt zodra het item wordt geladen met een Database-subitem."
+    },
+    "pin_bypassed_by_local_intents": {
+      "title": "PIN voor kritieke acties beschermt gesproken commando's niet",
+      "description": "Betrokken spraakassistent-pipelines: {pipelines}.\n\nDeze gebruiken Home Generative Agent als gespreksagent en hebben **Commando's bij voorkeur lokaal afhandelen** ingeschakeld. Home Assistant vergelijkt eenvoudige commando's dan met zijn eigen ingebouwde zinnen en voert ze zelf uit, inclusief het ontgrendelen van een slot, nog voordat de agent wordt aangeroepen. De agent ziet het commando nooit, dus de PIN voor kritieke acties kan het niet tegenhouden voor bevestiging.\n\nOm dit op te lossen open je **Instellingen → Spraakassistenten**, bewerk je elke hierboven vermelde pipeline en zet je **Commando's bij voorkeur lokaal afhandelen** uit.\n\nAls een slot of afdekking nooit met spraak bediend mag worden, stel het dan ook niet langer bloot onder **Instellingen → Spraakassistenten → Blootstellen**. Dat is de enige instelling die ook zinstriggers en paden buiten de agent afdekt."
+    },
+    "unknown_person_rules_inert_no_face": {
+      "title": "De regels voor onbekende personen van Sentinel kunnen niet afgaan",
+      "description": "Betrokken regels:\n\n{rules}\n\n**Waarom je dit ziet:** gezichtsherkenning staat uit, dus niets levert het resultaat dat deze regels nodig hebben.\n\n**Om het in te schakelen:** stel de URL van de gezichtsdienst in en schakel gezichtsherkenning in bij de opties van de integratie, zorg dat het item een Database-subitem heeft (daar staat de personengalerij) en stel een modus voor video-analyse in — gezichten worden alleen herkend terwijl de analyse snapshots verwerkt. De melding verdwijnt bij de volgende herlaadbeurt zodra het werkt.\n\nDeze regels worden alleen geactiveerd door een resultaat van gezichtsherkenning dat meldt dat een persoon is gezien maar niet herkend, en alleen de gezichtsherkenningspipeline levert dat. Als het ontbreekt, treedt er geen fout op en wordt er niets gelogd, en tellen de regels nog steeds als actief op de sensor `sentinel_health`, omdat ze vanuit Sentinel gezien simpelweg nooit overeenkomen.\n\nDe andere regels van Sentinel worden niet beïnvloed: ontgrendelde sloten, open ingangen, controles van apparaten en batterijen, en de beveiligingsaudit van Home Assistant en netwerk.\n\n**Voor camerabewaking zonder gezichtsherkenning** keur je een `motion_detected_*`-regel goed uit de regeldetectie van Sentinel — die melden beweging terwijl er niemand thuis is of 's nachts, en hebben geen gezichtsdienst nodig.\n\nAls je bewust zonder deze regels wilt werken, negeer dan deze melding — het is een vaststelling over de dekking, geen fout."
+    },
+    "unknown_person_rules_inert_no_gallery": {
+      "title": "De regels voor onbekende personen van Sentinel kunnen niet afgaan",
+      "description": "Betrokken regels:\n\n{rules}\n\n**Waarom je dit ziet:** gezichtsherkenning staat aan, maar dit item heeft geen database, dus er is geen personengalerij om iemand mee te herkennen. Daardoor wordt gezichtsherkenning bij het opstarten uitgeschakeld.\n\n**Om dit op te lossen:** voeg een Database-subitem toe met **+ Instellen** op de integratiepagina. Basislijn-anomaliedetectie staat om dezelfde reden uit en gaat dan ook weer werken. De melding verdwijnt bij de volgende herlaadbeurt.\n\nDeze regels worden alleen geactiveerd door een resultaat van gezichtsherkenning dat meldt dat een persoon is gezien maar niet herkend, en alleen de gezichtsherkenningspipeline levert dat. Als het ontbreekt, treedt er geen fout op en wordt er niets gelogd, en tellen de regels nog steeds als actief op de sensor `sentinel_health`, omdat ze vanuit Sentinel gezien simpelweg nooit overeenkomen.\n\nDe andere regels van Sentinel worden niet beïnvloed: ontgrendelde sloten, open ingangen, controles van apparaten en batterijen, en de beveiligingsaudit van Home Assistant en netwerk.\n\n**Voor camerabewaking zonder gezichtsherkenning** keur je een `motion_detected_*`-regel goed uit de regeldetectie van Sentinel — die melden beweging terwijl er niemand thuis is of 's nachts, en hebben geen gezichtsdienst nodig.\n\nAls je bewust zonder deze regels wilt werken, negeer dan deze melding — het is een vaststelling over de dekking, geen fout."
+    },
+    "unknown_person_rules_inert_no_analyzer": {
+      "title": "De regels voor onbekende personen van Sentinel kunnen niet afgaan",
+      "description": "Betrokken regels:\n\n{rules}\n\n**Waarom je dit ziet:** gezichtsherkenning staat aan en de database is aanwezig, maar de video-analyse staat uit. Gezichten worden alleen herkend terwijl de analyse camerasnapshots verwerkt, dus niets levert ooit het resultaat.\n\n**Om dit op te lossen:** stel bij de opties van de integratie een andere modus voor video-analyse in dan *disable*. De melding verdwijnt bij de volgende herlaadbeurt.\n\nDeze regels worden alleen geactiveerd door een resultaat van gezichtsherkenning dat meldt dat een persoon is gezien maar niet herkend, en alleen de gezichtsherkenningspipeline levert dat. Als het ontbreekt, treedt er geen fout op en wordt er niets gelogd, en tellen de regels nog steeds als actief op de sensor `sentinel_health`, omdat ze vanuit Sentinel gezien simpelweg nooit overeenkomen.\n\nDe andere regels van Sentinel worden niet beïnvloed: ontgrendelde sloten, open ingangen, controles van apparaten en batterijen, en de beveiligingsaudit van Home Assistant en netwerk.\n\n**Voor camerabewaking zonder gezichtsherkenning** keur je een `motion_detected_*`-regel goed uit de regeldetectie van Sentinel — die melden beweging terwijl er niemand thuis is of 's nachts, en hebben geen gezichtsdienst nodig.\n\nAls je bewust zonder deze regels wilt werken, negeer dan deze melding — het is een vaststelling over de dekking, geen fout."
+    }
+  }
+}

@@ -1,0 +1,519 @@
+{
+  "common": {
+    "feature_overwrite_warning": "⚠️ Funktionen sind bereits konfiguriert. Wenn du **Einfache Einrichtung** wählst, werden deine aktuellen Anbieterzuweisungen mit den empfohlenen Standardwerten überschrieben.",
+    "sentinel_overwrite_warning": "⚠️ Sentinel ist bereits konfiguriert. Wenn du **Einfache Einrichtung** wählst, werden deine aktuellen Einstellungen mit den empfohlenen Standardwerten überschrieben. Deine Entitätsausschlüsse und Kamera-Zugangs-Verknüpfungen bleiben erhalten.",
+    "no_model_provider_notice": "Es ist kein Modellanbieter konfiguriert. Ein Standardmodell wird zugewiesen, sobald eines verfügbar ist.",
+    "no_capable_model_provider_notice": "Keiner deiner Modellanbieter unterstützt diese Funktion. Füge einen weiteren Modellanbieter eines unterstützten Typs hinzu – für jeden Dienst, den du nutzt, kann ein eigener Anbieter angelegt werden, und jede Funktion kann einen anderen verwenden.",
+    "supported_provider_types_label": "Hier unterstützt:"
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Generative Agent",
+        "description": "Die Standardfunktionen werden erstellt. Führe anschließend **Einrichten** aus, um Funktionen und die Datenbank zu aktivieren bzw. zu konfigurieren, und füge dann einen **Modellanbieter** hinzu."
+      }
+    },
+    "error": {
+      "cannot_connect": "Der Dienst ist nicht erreichbar. Überprüfe Schlüssel/URLs und versuche es erneut.",
+      "invalid_auth": "Ungültiger API-Schlüssel.",
+      "invalid_pin": "Die PIN muss aus 4–10 Ziffern bestehen.",
+      "tool_excluded_and_included": "Ein Tool kann nicht gleichzeitig ausgeschlossen und immer einbezogen sein. Entferne es aus einer der beiden Listen.",
+      "unknown": "Unerwarteter Fehler."
+    }
+  },
+  "config_subentries": {
+    "database": {
+      "entry_type": "Dienst",
+      "abort": {
+        "reconfigure_successful": "Die Datenbankkonfiguration wurde erfolgreich aktualisiert."
+      },
+      "initiate_flow": {
+        "reconfigure": "Datenbank neu konfigurieren",
+        "user": "Datenbank einrichten"
+      },
+      "step": {
+        "set_options": {
+          "title": "Datenbank-Einrichtung",
+          "description": "Gib die erforderlichen Parameter für die Datenbank ein.",
+          "data": {
+            "username": "Datenbank-Benutzername",
+            "password": "Datenbank-Passwort",
+            "host": "Datenbank-Host",
+            "port": "Datenbank-Port (optional)",
+            "db_name": "Datenbankname",
+            "db_params": "Datenbank-Verbindungsparameter (optional)"
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Es konnte keine Verbindung zur Datenbank hergestellt werden. Überprüfe die Datenbankeinstellungen und versuche es erneut.",
+        "invalid_auth": "Ungültige Autorisierung.",
+        "invalid_uri": "Die URI konnte nicht erzeugt werden.",
+        "unknown": "Unerwarteter Fehler."
+      }
+    },
+    "model_provider": {
+      "entry_type": "Dienst",
+      "abort": {
+        "reconfigure_successful": "Modellanbieter aktualisiert."
+      },
+      "initiate_flow": {
+        "reconfigure": "Modellanbieter neu konfigurieren",
+        "user": "Modellanbieter hinzufügen"
+      },
+      "step": {
+        "deployment": {
+          "title": "Bereitstellung",
+          "description": "Wähle, wo dieser Anbieter läuft. **Edge** wird selbst in deinem eigenen Netzwerk gehostet (Ollama, OpenAI Compatible). **Cloud** ist eine gehostete API (OpenAI, Gemini, Anthropic). Diese Auswahl legt nur fest, welche Anbietertypen im nächsten Schritt angeboten werden – du kannst beliebig viele Anbieter beider Arten hinzufügen und jeder Funktion einen anderen zuweisen.",
+          "data": {
+            "deployment": "Bereitstellung"
+          }
+        },
+        "provider": {
+          "title": "Anbieter",
+          "description": "Wähle einen Anbietertyp und einen Namen. Füge für jeden Dienst, den du nutzen möchtest, einen eigenen Anbieter hinzu – zum Beispiel Anthropic für die Konversation und Gemini für Embeddings, da Anthropic keinen Embeddings-Endpunkt hat.",
+          "data": {
+            "provider_type": "Anbieter",
+            "name": "Anbietername"
+          },
+          "data_description": {
+            "name": "Lass den Namen leer, damit der Anbieter nach dem gewählten Anbietertyp benannt wird."
+          }
+        },
+        "settings": {
+          "title": "Anbietereinstellungen",
+          "description": "Konfiguriere den Endpunkt oder die Anmeldedaten des Anbieters.",
+          "data": {
+            "base_url": "Basis-URL",
+            "api_key": "API-Schlüssel",
+            "gemini_api_key": "Gemini-API-Schlüssel",
+            "anthropic_api_key": "Anthropic-API-Schlüssel"
+          },
+          "data_description": {
+            "api_key": "Für OpenAI erforderlich. Bei OpenAI-Compatible-Anbietern leer lassen oder 'none' eingeben, wenn der Endpunkt keine Authentifizierung erfordert."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Der Anbieter ist nicht erreichbar.",
+        "invalid_auth": "Ungültige Anmeldedaten.",
+        "unknown": "Unerwarteter Fehler."
+      }
+    },
+    "stt_provider": {
+      "entry_type": "Dienst",
+      "abort": {
+        "reconfigure_successful": "STT-Anbieter aktualisiert."
+      },
+      "initiate_flow": {
+        "reconfigure": "STT-Anbieter neu konfigurieren",
+        "user": "STT-Anbieter hinzufügen"
+      },
+      "step": {
+        "provider": {
+          "title": "Sprache-zu-Text-Anbieter",
+          "description": "Wähle einen Anbietertyp und einen Namen.",
+          "data": {
+            "provider_type": "Anbieter",
+            "name": "Anbietername"
+          }
+        },
+        "credentials": {
+          "title": "Anmeldedaten",
+          "description": "Wähle, wie sich der STT-Anbieter authentifizieren soll. Lokale Anbieter verbinden sich stattdessen mit der URL eines OpenAI-kompatiblen Servers.",
+          "data": {
+            "openai_provider_subentry_id": "OpenAI-Modellanbieter wiederverwenden",
+            "api_key": "API-Schlüssel",
+            "base_url": "Server-URL"
+          },
+          "data_description": {
+            "api_key": "Für OpenAI erforderlich. Optional für lokale Server, die keine Authentifizierung benötigen.",
+            "base_url": "OpenAI-kompatibler Endpunkt des lokalen STT-Servers, z. B. einer Speaches-Instanz. Ein fehlendes /v1-Suffix wird automatisch ergänzt."
+          }
+        },
+        "model": {
+          "title": "Modell & erweiterte Optionen",
+          "description": "Wähle ein Modell und optionale erweiterte Einstellungen.",
+          "data": {
+            "model_name": "Modell",
+            "language": "Sprache (optional)",
+            "prompt": "Prompt (optional)",
+            "temperature": "Temperatur (optional)",
+            "translate": "Ins Englische übersetzen",
+            "response_format": "Antwortformat",
+            "request_format": "Anfrageformat",
+            "extra_body": "Zusätzlicher Anfrage-Body (JSON, optional)"
+          },
+          "data_description": {
+            "request_format": "Wie das Audio gesendet wird. Multipart-Upload ist das Format von OpenAI selbst und funktioniert überall. JSON mit Base64-Audio ist das native Transkriptionsformat von OpenRouter – wähle es nur, wenn dein Server es dokumentiert. Es hat keinen Übersetzungs-Endpunkt und ignoriert das Prompt-Feld oben.",
+            "extra_body": "Ein JSON-Objekt, das in den Anfrage-Body eingefügt wird, für Felder, die HGA nicht anbietet. Bei OpenRouter gehören hier Anbieteroptionen wie Keyword-Biasing hin, und diese benötigen das JSON-Anfrageformat. Ein ausgearbeitetes Beispiel findest du im STT-Abschnitt der Dokumentation. Im Zweifel leer lassen."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Der Anbieter ist nicht erreichbar.",
+        "invalid_auth": "Ungültige Anmeldedaten.",
+        "invalid_model": "Wähle ein gültiges Modell.",
+        "not_supported": "Der Anbieter wird noch nicht unterstützt.",
+        "unknown": "Unerwarteter Fehler.",
+        "invalid_extra_body": "Der zusätzliche Anfrage-Body muss ein JSON-Objekt sein.",
+        "reserved_extra_body_key": "Der zusätzliche Anfrage-Body darf stream, file oder input_audio nicht setzen – diese steuert Home Generative Agent."
+      }
+    },
+    "tts_provider": {
+      "entry_type": "Dienst",
+      "abort": {
+        "reconfigure_successful": "TTS-Anbieter aktualisiert."
+      },
+      "initiate_flow": {
+        "reconfigure": "TTS-Anbieter neu konfigurieren",
+        "user": "TTS-Anbieter hinzufügen"
+      },
+      "step": {
+        "provider": {
+          "title": "Text-zu-Sprache-Anbieter",
+          "description": "Wähle einen Anbietertyp und einen Namen.",
+          "data": {
+            "provider_type": "Anbieter",
+            "name": "Anbietername"
+          }
+        },
+        "credentials": {
+          "title": "Anmeldedaten",
+          "description": "Wähle, wie sich der TTS-Anbieter authentifizieren soll. Lokale Anbieter verbinden sich stattdessen mit der URL eines OpenAI-kompatiblen Servers.",
+          "data": {
+            "openai_provider_subentry_id": "OpenAI-Modellanbieter wiederverwenden",
+            "api_key": "API-Schlüssel",
+            "base_url": "Server-URL"
+          },
+          "data_description": {
+            "api_key": "Für OpenAI erforderlich. Optional für lokale Server, die keine Authentifizierung benötigen.",
+            "base_url": "OpenAI-kompatibler Endpunkt des lokalen TTS-Servers, z. B. einer Speaches-Instanz. Ein fehlendes /v1-Suffix wird automatisch ergänzt."
+          }
+        },
+        "model": {
+          "title": "Modell, Stimme & erweiterte Optionen",
+          "description": "Wähle ein Modell, eine Stimme und optionale erweiterte Einstellungen.",
+          "data": {
+            "model_name": "Modell",
+            "voice": "Stimme",
+            "speed": "Geschwindigkeit",
+            "instructions": "Anweisungen zur Stimme (optional)"
+          },
+          "data_description": {
+            "voice": "OpenAI: alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer oder verse. Lokal: eine Stimmen-ID, die das Modell des Servers bereitstellt, z. B. af_heart für Kokoro.",
+            "speed": "Multiplikator für die Wiedergabegeschwindigkeit, 0,25 bis 4,0. 1,0 ist normale Geschwindigkeit.",
+            "instructions": "Wie die Stimme klingen soll, z. B. Tonfall oder Sprechtempo. Wird nur von OpenAI-Modellen gpt-4o-mini-tts verwendet; anderswo ignoriert."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Der Anbieter ist nicht erreichbar.",
+        "invalid_auth": "Ungültige Anmeldedaten.",
+        "invalid_model": "Wähle ein gültiges Modell.",
+        "not_supported": "Der Anbieter wird noch nicht unterstützt.",
+        "unknown": "Unerwarteter Fehler."
+      }
+    },
+    "sentinel": {
+      "entry_type": "Dienst",
+      "abort": {
+        "reconfigure_successful": "Sentinel-Konfiguration aktualisiert."
+      },
+      "error": {
+        "invalid_camera_entry_links": "Muss ein JSON-Objekt sein, das Kamera-Entitäts-IDs Listen von Zugangs-Entitäts-IDs zuordnet, z. B. ein Schlüssel \"camera.driveway\" mit dem Wert [\"lock.front_door\"].",
+        "invalid_pin": "Die PIN muss aus 4–10 Ziffern bestehen.",
+        "quiet_hours_incomplete": "Lege sowohl Beginn als auch Ende der Ruhezeit fest (oder setze beide auf Deaktiviert).",
+        "invalid_quiet_hours": "Ruhezeiten müssen lokale Stunden zwischen 0 und 23 sein.",
+        "invalid_rule_entity_exclusions": "Muss ein JSON-Objekt sein, das einem Anomalietyp (oder \"*\" für alle Typen) Listen von Entitäts-IDs oder Glob-Mustern zuordnet (nur Platzhalter * und ?, Kleinbuchstaben-Zeichen von Entitäts-IDs), die jeweils einen Punkt und mindestens ein literales Zeichen enthalten, z. B. ein Schlüssel \"appliance_power_duration\" mit dem Wert [\"sensor.ac_power\"] oder ein Schlüssel \"camera_entry_unsecured\" mit dem Wert [\"camera.map_*\"]. Alles abdeckende Einträge wie \"*\" oder \"*.*\" sind nicht erlaubt – verwende stattdessen den Typschlüssel \"*\"."
+      },
+      "initiate_flow": {
+        "reconfigure": "Sentinel neu konfigurieren",
+        "user": "Sentinel konfigurieren"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Sentinel-Einrichtung",
+          "description": "Wähle, wie die Sentinel-Überwachung konfiguriert werden soll.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Einrichtungsart"
+          }
+        },
+        "basic_settings": {
+          "title": "Sentinel",
+          "description": "Konfiguriere die wichtigsten Sentinel-Einstellungen. Alle anderen Optionen verwenden die empfohlenen Standardwerte.",
+          "data": {
+            "sentinel_enabled": "Anomalie-Benachrichtigungen aktivieren",
+            "sentinel_daily_digest_enabled": "Tägliche Zusammenfassung aktivieren",
+            "sentinel_daily_digest_time": "Uhrzeit der täglichen Zusammenfassung (HH:MM:SS)",
+            "critical_action_pin": "PIN für Stufenerhöhung (optional, 4–10 Ziffern)",
+            "notify_service": "Benachrichtigungsdienst (optional)"
+          }
+        },
+        "settings": {
+          "title": "Sentinel",
+          "description": "Konfiguriere die proaktive Sentinel-Überwachung und -Erkennung.",
+          "data": {
+            "sentinel_enabled": "Anomalie-Benachrichtigungen aktivieren",
+            "sentinel_interval_seconds": "Sentinel-Intervall (Sekunden)",
+            "sentinel_cooldown_minutes": "Sentinel-Abklingzeit pro Typ (Minuten)",
+            "sentinel_entity_cooldown_minutes": "Sentinel-Abklingzeit pro Entität (Minuten)",
+            "sentinel_pending_prompt_ttl_minutes": "Gültigkeitsdauer ausstehender Rückfragen (Minuten)",
+            "sentinel_discovery_enabled": "Erkennung aktivieren (erfordert Anomalie-Benachrichtigungen)",
+            "sentinel_discovery_interval_seconds": "Erkennungsintervall (Sekunden)",
+            "sentinel_discovery_max_records": "Maximal aufbewahrte Erkennungseinträge",
+            "sentinel_triage_enabled": "LLM-Triage von Befunden aktivieren",
+            "sentinel_triage_timeout_seconds": "Triage-Zeitlimit (Sekunden)",
+            "sentinel_response_language": "Sprache der Befunderklärungen (optional)",
+            "sentinel_baseline_enabled": "Baseline-Erfassung aktivieren (erfordert Anomalie-Benachrichtigungen)",
+            "sentinel_baseline_update_interval_minutes": "Baseline-Aktualisierungsintervall (Minuten)",
+            "sentinel_baseline_freshness_threshold_seconds": "Baseline-Aktualitätsschwelle (Sekunden)",
+            "sentinel_baseline_weekly_patterns": "Wochentagsbezogene Baselines aktivieren (reduziert Fehlalarme am Wochenende)",
+            "sentinel_baseline_dow_min_samples": "Mindestanzahl Stichproben für Wochentags-Baseline (Wochen an Daten pro Zeitfenster)",
+            "sentinel_baseline_min_samples": "Mindestanzahl Baseline-Stichproben, bevor Abweichungswarnungen ausgelöst werden",
+            "sentinel_baseline_sustained_minutes": "Filter für zyklische Last: Minuten über dem Schwellenwert vor einer Warnung (0 = deaktiviert)",
+            "sentinel_appliance_power_threshold_w": "Geräteleistungsregel: Leistungsschwelle (W)",
+            "sentinel_appliance_duration_min": "Geräteleistungsregel: Dauer bis zur Warnung (Minuten)",
+            "sentinel_network_enabled": "Netzwerk- und Home Assistant-Sicherheitsprüfung aktivieren",
+            "sentinel_network_offline_device_min": "Offline-Schwelle für Sicherheitsgeräte (Minuten)",
+            "sentinel_network_unknown_device_grace_min": "Karenzzeit für neue Netzwerkgeräte (Minuten)",
+            "sentinel_network_guest_idle_days": "Inaktivitätsschwelle für Gast-WLAN (Tage)",
+            "sentinel_network_audit_share_details": "Details der Sicherheitsprüfung mit dem Chatmodell teilen",
+            "sentinel_ha_token_stale_days": "Schwelle für veraltete langlebige Tokens (Tage)",
+            "sentinel_auth_ip_retention_days": "Aufbewahrung von Adressen im Auth-Inventar (Tage)",
+            "explain_enabled": "LLM-Erklärungen für Sentinel-Befunde aktivieren",
+            "sentinel_require_pin_for_level_increase": "PIN für Erhöhungen der Autonomiestufe verlangen",
+            "sentinel_daily_digest_enabled": "Tägliche Zusammenfassung aktivieren",
+            "sentinel_daily_digest_time": "Uhrzeit der täglichen Zusammenfassung (HH:MM:SS)",
+            "sentinel_quiet_hours_start": "Beginn der Ruhezeit (unterdrückt ausgewählte Schweregrade)",
+            "sentinel_quiet_hours_end": "Ende der Ruhezeit",
+            "sentinel_quiet_hours_severities": "In der Ruhezeit unterdrückte Schweregrade",
+            "sentinel_camera_entry_links": "Kamera-Zugangs-Verknüpfungen (JSON, optional)",
+            "sentinel_rule_entity_exclusions_all": "Entitäten von allen Sentinel-Regeln ausschließen (optional)",
+            "sentinel_rule_entity_exclusions": "Erweitert: Entitätsausschlüsse pro Regel (JSON, optional)",
+            "critical_action_pin": "Sentinel-PIN für Stufenerhöhung (optional)",
+            "notify_service": "Sentinel-Benachrichtigungsdienst (optional)"
+          },
+          "data_description": {
+            "explain_enabled": "Lass ein Modell den Wortlaut jeder Warnung formulieren, statt die feste Zusammenfassung der Regel zu verwenden. Das ändert nur, wie eine Warnung formuliert ist – nie, ob du sie erhältst; das entscheidet die LLM-Triage oben. Es kostet einen Modellaufruf pro tatsächlich gesendeter Warnung und läuft nach der Triage, sodass ein unterdrückter Befund es nie erreicht. Die Home Assistant- & Netzwerk-Sicherheitswarnungen sowie die Warnungen zum Entschärfen der Alarmanlage behalten immer ihren exakten Wortlaut und sind nicht betroffen. Lege unten die Sprache der Befunderklärungen fest, um diesen Text in einer anderen Sprache verfassen zu lassen. Standardmäßig aus.",
+            "sentinel_response_language": "Sprache für die vom LLM verfasste Befunderklärung in Benachrichtigungen, z. B. 'Czech'. Leer lassen für Englisch. Titel/Zusammenfassung von Erkennungskandidaten sowie Triage-Entscheidung/reason_code/Zusammenfassung sind nicht betroffen – diese werden vom Code ausgewertet und bleiben immer auf Englisch.",
+            "sentinel_rule_entity_exclusions_all": "Wähle Entitäten, die Sentinel überall ignorieren soll – z. B. das Template-Schloss eines Touch-Panels, das nur den Zustand einer anderen Entität spiegelt. Ausgeschlossene Entitäten werden aus den Befunden aller Regeln entfernt und wecken Sentinel nicht mehr, sodass eine echte Anomalie, an der sie beteiligt sind, erst bei der nächsten Abfrage erkannt wird (standardmäßig 5 Minuten). Schließe keine Kamera, kein Schloss und kein Alarmpanel aus, von dem du weiterhin sofortige Warnungen erhalten möchtest.",
+            "sentinel_rule_entity_exclusions": "Zum Ausschließen einer Entität nur von einer bestimmten Regel (nicht von allen) und für Glob-Muster wie camera.map_*, die die Auswahl oben nicht aufnehmen kann. Erwartet ein JSON-Objekt, dessen Schlüssel Anomalietypen und dessen Werte Listen von Entitäts-IDs sind; der Schlüssel \"*\" steht für alle Regeln. Beispiele findest du in der Sentinel-Dokumentation. Die meisten brauchen das nicht – verwende stattdessen die Auswahl oben.",
+            "sentinel_triage_enabled": "Führt pro Befund einen zusätzlichen LLM-Aufruf aus, der wenig relevante Warnungen unterdrücken kann. Erfordert ein konfiguriertes Chatmodell und Sentinel-Autonomiestufe 1 oder höher – bei Stufe 0 hat der Schalter keine Wirkung. Das Modell kann einen Befund nur unterdrücken oder durchlassen – es ändert, erstellt oder bearbeitet nie einen, und bei einem Fehler oder einer Zeitüberschreitung wird der Befund durchgelassen. Standardmäßig aus.",
+            "sentinel_triage_timeout_seconds": "Wie lange auf den Triage-Aufruf gewartet wird, bevor der Befund unverändert durchgelassen wird.",
+            "sentinel_network_enabled": "Führt die Home Assistant- & Netzwerk-Sicherheitsregeln in jedem Sentinel-Zyklus aus und lässt den Chat-Agenten sie bei Bedarf ausführen: Administratorkonten und Zugriffstokens, für Sprachassistenten freigegebene Entitäten, Add-on-Ports, Funk-Kopplungen, UPnP am Router und – mit einer Router-Integration – die Geräte in deinem Netzwerk. Das Netzwerk wird nicht gescannt – jede Information stammt aus dem, was Home Assistant bereits weiß. Ist die Option aus, werden diese Regeln im Health-Sensor als inaktiv angezeigt und das Prüftool meldet, dass sie ausgeschaltet sind. Standardmäßig an.",
+            "sentinel_network_offline_device_min": "Wie lange ein Schloss, Alarmpanel oder eine Kamera nicht verfügbar sein darf, bevor Sentinel es meldet. Standard: 30 Minuten.",
+            "sentinel_network_unknown_device_grace_min": "Minuten, die nach dem ersten Erkennen eines neuen Geräts in deinem Netzwerk gewartet werden, bevor Sentinel es meldet – so wird ein Gerät, das kommt und geht, trotzdem gemeldet, aber nie im Moment seines Auftauchens. Erfordert eine Router-Integration. Standard: 5; 0 meldet sofort beim ersten Erkennen.",
+            "sentinel_network_guest_idle_days": "Tage, die das Gast-WLAN ohne verbundenen Gast aktiviert bleiben darf, bevor Sentinel vorschlägt, es auszuschalten. Erfordert eine Router-Integration, die das Gastnetzwerk meldet (derzeit eero). Standard: 7.",
+            "sentinel_network_audit_share_details": "Ist die Option an, gibt die Sicherheitsprüfung des Chat-Agenten dem Chatmodell die Details der Befunde (Gerätenamen, Ports, Token-Namen), damit es sie erklären kann. Ist sie aus, erhält das Modell nur Anzahlen, Schweregrade und feste Titel, und der vollständige Bericht geht als persistente Home Assistant-Benachrichtigung raus, wenn ein Administrator gefragt hat (ein Sprachsatellit oder ein Konto ohne Adminrechte erhält nur die Zusammenfassung). Netzwerkadressen werden in beiden Fällen unkenntlich gemacht. Standardmäßig an.",
+            "sentinel_ha_token_stale_days": "Alter in Tagen, ab dem ein langlebiges Zugriffstoken gemeldet wird. Home Assistant zeichnet nicht auf, wann ein langlebiges Token verwendet wird, daher ist das Alter die einzige verfügbare Information, und die Warnung empfiehlt, alte Tokens zu erneuern. Standard: 90.",
+            "sentinel_auth_ip_retention_days": "Wie lange eine Adresse, die ein Zugriffstoken verwendet hat, im Inventar der Sicherheitsprüfung bleibt. Adressen werden als Einweg-Hashes gespeichert, nie im Klartext, und pro Token werden höchstens 20 aufbewahrt. Standard: 90 Tage."
+          }
+        }
+      }
+    },
+    "feature": {
+      "entry_type": "Dienst",
+      "abort": {
+        "reconfigure_successful": "Funktion aktualisiert.",
+        "setup_complete": "Einrichtung abgeschlossen.",
+        "no_provider_for_basic_setup": "Es ist kein Modellanbieter konfiguriert. Füge zuerst einen **Modellanbieter** hinzu und starte die Einrichtung dann erneut."
+      },
+      "error": {
+        "no_providers": "Es sind keine Modellanbieter konfiguriert.",
+        "cannot_connect": "Es konnte keine Verbindung zur Datenbank hergestellt werden. Überprüfe die Einstellungen und versuche es erneut.",
+        "invalid_auth": "Ungültige Autorisierung.",
+        "invalid_uri": "Die URI konnte nicht erzeugt werden.",
+        "unknown": "Unerwarteter Fehler."
+      },
+      "initiate_flow": {
+        "reconfigure": "Funktion neu konfigurieren",
+        "user": "Einrichten"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Einrichtung",
+          "description": "Wähle eine Einrichtungsart. Die einfache Einrichtung aktiviert alle Funktionen mit den empfohlenen Standardwerten. Die erweiterte Einrichtung gibt dir die volle Kontrolle über jede Funktion.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Einrichtungsart"
+          }
+        },
+        "setup_status": {
+          "title": "Einrichtung abgeschlossen",
+          "description": "Die Einrichtung ist abgeschlossen.\n\n**Aktivierte Funktionen:** {features_enabled}{skipped_section}\n\n**Datenbank:** {database_status}\n\n**Nächste Schritte:**\n- Führe **Sentinel konfigurieren** aus, um die Anomalieüberwachung zu aktivieren.\n- Füge einen **STT-Anbieter** für die Spracheingabe hinzu.\n- Gehe zu **Einstellungen → Sprachassistenten**, um Home Generative Agent als deinen Sprachassistenten hinzuzufügen."
+        },
+        "feature_enable": {
+          "title": "Funktionen einrichten",
+          "description": "**Konversation** ist immer aktiviert. Aktiviere oder deaktiviere unten optionale Funktionen.",
+          "data": {
+            "camera_image_analysis": "Kamerabildanalyse",
+            "conversation_summary": "Konversationszusammenfassung",
+            "embedding": "Embeddings"
+          },
+          "data_description": {
+            "embedding": "Embedding-Modell für das semantische Gedächtnis und die Tool-Suche. Ist die Option aus, wird der Anbieter automatisch gewählt (der Konversationsanbieter, sofern er Embeddings unterstützt)."
+          }
+        },
+        "feature_provider": {
+          "title": "Modellanbieter wählen",
+          "description": "Wähle einen Modellanbieter für {feature_name}.",
+          "data": {
+            "model_provider_id": "Modellanbieter"
+          }
+        },
+        "feature_model": {
+          "title": "{feature_name}",
+          "description": "Konfiguriere die Modelleinstellungen für diese Funktion. {provider_notice}",
+          "data": {
+            "model_name": "Modell",
+            "fallback_provider_ids": "Ausweichanbieter",
+            "temperature": "Temperatur",
+            "keepalive_s": "Ollama-Keepalive (Sekunden oder Nie entladen (-1))",
+            "context_size": "Ollama-Kontextgröße (Tokens)",
+            "reasoning": "Denken / Reasoning",
+            "reasoning_budget": "Denkbudget (Tokens)",
+            "openai_api": "OpenAI-API"
+          },
+          "data_description": {
+            "fallback_provider_ids": "Geordnete Liste von Ausweichanbietern. Fällt der primäre Anbieter aus, wird der erste verfügbare Anbieter verwendet.",
+            "reasoning": "Steuert das Denken des ausgewählten Chatmodells. „Anbieterstandard“ lässt das Verhalten von Server/Modell unverändert; „Aus“ und „An“ legen es explizit fest; Aufwandsstufen werden an Anbieter weitergegeben, die sie unterstützen. Die Einstellungen werden pro Modellname gespeichert, sodass beim Wechseln des Modells die Konfiguration jedes Modells wiederhergestellt wird.",
+            "reasoning_budget": "Optionales Budget an Denk-Tokens für Anbieter, die eines unterstützen (OpenAI-kompatible Server wie llama.cpp, Gemini, Anthropic). Leer lassen für den Anbieterstandard.",
+            "openai_api": "Welche OpenAI-API dieses Modell verwendet. „Automatisch“ wählt die beste für das Modell: die Responses API für GPT-6-Chatmodelle (sie können Tools und Reasoning über Chat Completions nicht kombinieren) und für OpenAI-Modelle, die nur dort angeboten werden (codex, pro), andernfalls Chat Completions. Wähle eine explizit, um dies zu überschreiben, zum Beispiel die Responses API auf einem OpenAI-kompatiblen Server, der sie unterstützt. Kann die gewählte API eine Anfrage nicht bedienen, wird der Aufruf automatisch wiederholt (Chat Completions mit ausgeschaltetem Reasoning für GPT-6-Tool-Aufrufe oder Chat Completions, wenn ein Server keine Responses API hat). Die Auswahl wird pro Modellname gespeichert."
+          }
+        },
+        "database": {
+          "title": "Datenbank-Einrichtung",
+          "description": "Gib die erforderlichen Parameter für die Datenbank ein.",
+          "data": {
+            "username": "Datenbank-Benutzername",
+            "password": "Datenbank-Passwort",
+            "host": "Datenbank-Host",
+            "port": "Datenbank-Port (optional)",
+            "db_name": "Datenbankname",
+            "db_params": "Datenbank-Verbindungsparameter (optional)"
+          }
+        },
+        "instructions": {
+          "title": "Modellanbieter hinzufügen",
+          "description": "Es ist noch kein Modellanbieter konfiguriert. Füge einen über **Modellanbieter** hinzu."
+        }
+      }
+    }
+  },
+  "selector": {
+    "setup_mode": {
+      "options": {
+        "basic": "Einfache Einrichtung",
+        "advanced": "Erweiterte Einrichtung"
+      }
+    },
+    "db_params": {
+      "fields": {
+        "key": {
+          "name": "Schlüssel",
+          "description": "Name des Verbindungsparameters (zum Beispiel: sslmode, connect_timeout)"
+        },
+        "value": {
+          "name": "Wert",
+          "description": "Wert des Verbindungsparameters (zum Beispiel: disable, 30)"
+        }
+      }
+    },
+    "stt_request_format": {
+      "options": {
+        "multipart": "Multipart-Upload (Standard)",
+        "json_base64": "JSON mit Base64-Audio"
+      }
+    },
+    "voice_ack_timing": {
+      "options": {
+        "turn_start": "Sobald der Agent startet",
+        "tool_call": "Vor dem ersten Tool-Aufruf"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_config_entry": {
+      "message": "Ungültiger Konfigurationseintrag angegeben. Erhalten: {config_entry}"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Home Generative Agent-Optionen",
+        "description": "Globales Verhalten und Prompts konfigurieren.",
+        "data": {
+          "face_api_url": "URL der Gesichtserkennungs-API (optional)",
+          "prompt": "Anweisungen",
+          "vlm_response_language": "Sprache der Kamerabeschreibungen (optional)",
+          "vlm_prompt_extra": "Zusätzliche Anweisungen für die Kameraanalyse (optional)",
+          "llm_hass_api": "Home Assistant steuern",
+          "video_analyzer_mode": "Modus der Videoanalyse",
+          "video_analyzer_uniqueness_enabled": "Frame-Filter per Wahrnehmungs-Hash aktivieren (dHash)",
+          "video_analyzer_event_recording_enabled": "Ring-Ereignisaufnahmen analysieren (ring-mqtt, Ring Protect)",
+          "video_analyzer_motion_camera_map": "Bewegungsmelder → Kamera-Zuordnungen (optional)",
+          "notify_service": "Benachrichtigungsdienst der Videoanalyse (optional)",
+          "video_analyzer_notification_cooldown_s": "Abklingzeit für Kamerabenachrichtigungen (Sekunden)",
+          "video_analyzer_house_notification_cooldown_s": "Hausweite Abklingzeit für Benachrichtigungen (Sekunden)",
+          "face_recognition": "Gesichtserkennung aktivieren",
+          "manage_context_with_tokens": "Methode der Kontextverwaltung",
+          "max_tokens_in_context": "Maximale Tokens im Chatkontext",
+          "max_messages_in_context": "Maximale Nachrichten im Chatkontext",
+          "critical_action_pin_enabled": "PIN für kritische Aktionen verlangen",
+          "critical_action_pin": "PIN für kritische Aktionen (erforderlich zum Entriegeln/Scharfschalten/Öffnen sensibler Geräte)",
+          "schema_first_yaml": "Schema-first-JSON für YAML-Anfragen",
+          "stt_filters_section": "Filter für Spracheingabe",
+          "stt_hallucination_patterns": "Ignorierte STT-Teilzeichenfolgen",
+          "stt_hallucination_exact_patterns": "Ignorierte exakte STT-Phrasen",
+          "voice_tool_acknowledgement": "Gesprochene Bestätigung (nur Sprache)",
+          "voice_tool_acknowledgement_timing": "Zeitpunkt der gesprochenen Bestätigung",
+          "tool_retrieval_limit": "Limit für den Tool-Abruf",
+          "tool_relevance_threshold": "Relevanzschwelle für Tools",
+          "tool_exclusions": "Ausgeschlossene Tools",
+          "tool_inclusions": "Immer einbezogene Tools"
+        },
+        "data_description": {
+          "prompt": "Lege fest, wie das LLM antworten soll. Dies kann ein Template sein.",
+          "vlm_response_language": "Sprache für die VLM-Beschreibungen von Kamerabildern, z. B. 'Czech'. Leer lassen für Englisch. Die interne Antwort 'Scene unchanged.' bleibt immer auf Englisch.",
+          "vlm_prompt_extra": "Zusätzliche Anweisungen, die an den VLM-Prompt für die Kameraanalyse angehängt werden, z. B. 'Autos in der Einfahrt ignorieren'. Sie ersetzen nie die integrierten Regeln.",
+          "video_analyzer_notification_cooldown_s": "0 schaltet sie aus. Nachdem eine Kamerabenachrichtigung mit Ton ausgelöst wurde, ersetzen spätere Benachrichtigungen derselben Kamera innerhalb dieser Anzahl an Sekunden (höchstens 600) dieselbe Benachrichtigung lautlos mit der neuesten Beschreibung und dem neuesten Bild, statt erneut einen Ton auszulösen. Bei aktivierter Gesichtserkennung löst die erste unbekannte Person in diesem Zeitraum trotzdem einen Ton aus. Funktioniert nur mit einem einzelnen Companion-App-Benachrichtigungsdienst (notify.mobile_app_...).",
+          "video_analyzer_house_notification_cooldown_s": "0 schaltet sie aus. Ein Ereignis, das von mehreren Kameras erfasst wird, löst bei jeder Kamera eine Benachrichtigung aus. Nachdem eine Kamerabenachrichtigung mit Ton ausgelöst wurde, erstellt eine Benachrichtigung einer beliebigen Kamera innerhalb dieser Anzahl an Sekunden (höchstens 60) zwar weiterhin eine eigene Karte, aber lautlos, und diese Kamera bleibt dann für ihre Abklingzeit für Kamerabenachrichtigungen still – oder für diese Anzahl an Sekunden, falls länger –, gerechnet ab diesem Ton. Ist die Kamera-Abklingzeit aus, ist jede Kamera, auch die, die den Ton ausgelöst hat, für diese Anzahl an Sekunden still. Bei aktivierter Gesichtserkennung löst die erste unbekannte Person in diesem Zeitraum trotzdem einen Ton aus. Beginne mit etwa 15 Sekunden: Das Video jeder Kamera wird separat analysiert, sodass ein Ereignis die Kameras im Abstand von 10 bis 30 Sekunden erreichen kann. Funktioniert nur mit einem einzelnen Companion-App-Benachrichtigungsdienst (notify.mobile_app_...); nur unter iOS getestet.",
+          "schema_first_yaml": "Wenn aktiviert, werden YAML-Anfragen mit striktem JSON beantwortet, das in YAML umgewandelt wird.",
+          "stt_hallucination_patterns": "Eine Teilzeichenfolge pro Zeile. Enthält ein STT-Transkript einen der Einträge, wird es ignoriert, bevor das LLM läuft. Groß-/Kleinschreibung wird nicht beachtet.",
+          "stt_hallucination_exact_patterns": "Eine Phrase pro Zeile. Entspricht das gesamte STT-Transkript einem der Einträge, wird es ignoriert, bevor das LLM läuft. Groß-/Kleinschreibung wird nicht beachtet.",
+          "voice_tool_acknowledgement": "Wird von einem Sprachsatelliten gesagt, während der Agent an einer Anfrage arbeitet, damit auf eine langsame Frage keine Stille folgt (zum Beispiel „Einen Moment.“). Nur bei Sprachinteraktionen, höchstens einmal pro Antwort; die nächste Option legt fest, wann. Erfordert die Text-zu-Sprache-Engine von HGA oder eine andere streamingfähige. Formuliere sie in der Sprache deines Assistenten. Leer lassen, um sie auszuschalten.",
+          "voice_tool_acknowledgement_timing": "„Sobald der Agent startet“ deckt die gesamte Wartezeit ab, einschließlich der Zeit eines lokalen Modells bis zu seinem ersten Wort, wird aber auch vor einer Antwort gesagt, die keine Tools benötigt (wähle daher eine neutrale Formulierung wie „Einen Moment.“). „Vor dem ersten Tool-Aufruf“ wird nur bei Interaktionen gesagt, die Tools verwenden, nachdem das Modell begonnen hat.",
+          "tool_retrieval_limit": "Die maximale Anzahl an Tools, die anhand der semantischen Ähnlichkeit zur Anfrage des Benutzers abgerufen werden.",
+          "tool_relevance_threshold": "Der minimale semantische Ähnlichkeitswert (0,0 bis 1,0), den ein Tool erreichen muss, um abgerufen zu werden.",
+          "tool_exclusions": "Hier markierte Tools werden dem Modell nie angeboten und nie ausgeführt, selbst wenn es namentlich danach fragt. Leer lassen, um jedes Tool jeder ausgewählten API bereitzustellen. Tools, die ein Server später hinzufügt, sind standardmäßig verfügbar.",
+          "tool_inclusions": "Hier markierte Tools werden dem Modell immer angeboten: Sie werden nach dem vektorbasierten Tool-Abruf angehängt, zusätzlich zum Abruflimit. Nützlich für Allzweck-Tools wie die Websuche, die die Ähnlichkeitssuche möglicherweise nicht auswählt. Das Modell entscheidet weiterhin, ob es sie verwendet. Ein Tool kann nicht gleichzeitig ausgeschlossen und immer einbezogen sein.",
+          "video_analyzer_uniqueness_enabled": "Überspringt visuell nahezu identische Frames vor der VLM-Analyse. Achtung: Wenn du dies aktivierst, geht der Bewegungskontext zwischen den Frames verloren, den das Zusammenfassungsmodell zur Beschreibung von Bewegungen nutzt. Aktiviere es nur, wenn eine statische Szene übermäßig viele Duplikate erzeugt und du akzeptierst, dass die Bewegungskontinuität verloren gehen kann.",
+          "video_analyzer_event_recording_enabled": "Wenn eine ring-mqtt-Entität event_select eine signierte recordingUrl mit einer neuen eventId veröffentlicht, wird die MP4 des Ereignisses heruntergeladen, es werden mit ffmpeg bis zu 8 Frames extrahiert und diese anstelle des gespeicherten Intervall-Schnappschusses analysiert, der bei Akkukameras bis zu 10 Minuten älter als das Ereignis sein kann. Erfordert ein Ring Protect-Abonnement (Kameras ohne recordingUrl verwenden weiterhin Schnappschüsse) und die ffmpeg-Binärdatei, die im offiziellen Home Assistant-Image enthalten ist.",
+          "video_analyzer_motion_camera_map": "Eine Zuordnung pro Zeile: binary_sensor.X_motion: camera.Y — verwende dies, wenn die automatische Zuordnung die falsche Kamera wählt. Leer lassen, um sich auf die geräte- und namensbasierte Zuordnung zu verlassen."
+        }
+      }
+    }
+  },
+  "issues": {
+    "database_not_configured": {
+      "title": "Home Generative Agent läuft ohne Datenbank",
+      "description": "Dieser Eintrag hat keinen Datenbank-Untereintrag und läuft daher nur mit In-Memory-Speicher. Der Konversationsverlauf geht bei jedem Neuladen oder Neustart verloren, das Langzeitgedächtnis (Konversationszusammenfassungen, Abruf von Kameraaktivitäten, Zustimmung zum Scharfschalten der Alarmanlage) und die Gesichtserkennung (die Personengalerie) sind nicht verfügbar, und der Baseline-Anomaliedetektor von Sentinel ist aus. Sentinel-Regeln, Benachrichtigungen und das Prüfprotokoll funktionieren weiterhin.\n\nDer Datenbank-Untereintrag wird über **+ Einrichten** auf der Integrationsseite erstellt: **Einfach** erstellt ihn mit den empfohlenen Standardwerten, und **Erweitert** endet mit dem Schritt **Datenbank-Einrichtung**, der die Verbindung vor dem Speichern testet. Dieser Zustand entsteht entweder, wenn **+ Einrichten** nach dem Hinzufügen der Integration nicht ausgeführt wurde, oder wenn der erweiterte Assistent bei diesem letzten Schritt geschlossen wurde (die Funktionen werden davor gespeichert, sodass der Eintrag trotzdem lädt).\n\nZur Behebung öffne **Einstellungen → Geräte & Dienste → Home Generative Agent**, klicke auf **+ Einrichten**, wähle **Erweitert**, gehe die Funktionen durch und fülle das Formular **Datenbank-Einrichtung** aus. Mit der mitgelieferten App PostgreSQL mit pgvector sind die Standardwerte (`localhost`, Port `5432`, Datenbank `ha_db`, Benutzer `ha_user`) korrekt. Dieses Problem verschwindet, sobald der Eintrag mit einem Datenbank-Untereintrag lädt."
+    },
+    "pin_bypassed_by_local_intents": {
+      "title": "Die PIN für kritische Aktionen schützt keine gesprochenen Befehle",
+      "description": "Betroffene Sprachassistenten-Pipelines: {pipelines}.\n\nDiese verwenden Home Generative Agent als Konversationsagenten und haben **Befehle bevorzugt lokal verarbeiten** aktiviert. Home Assistant gleicht einfache Befehle dann mit seinen eigenen integrierten Sätzen ab und führt sie selbst aus – auch das Entriegeln eines Schlosses –, bevor der Agent überhaupt aufgerufen wird. Der Agent sieht den Befehl nie, daher kann die PIN für kritische Aktionen ihn nicht zur Bestätigung zurückhalten.\n\nZur Behebung öffne **Einstellungen → Sprachassistenten**, bearbeite jede oben aufgeführte Pipeline und schalte **Befehle bevorzugt lokal verarbeiten** aus.\n\nWenn ein Schloss oder eine Abdeckung überhaupt nie per Sprache bedienbar sein soll, gib es zusätzlich unter **Einstellungen → Sprachassistenten → Freigeben** nicht mehr frei. Das ist die einzige Einstellung, die auch Satz-Auslöser und Wege ohne Agent abdeckt."
+    },
+    "unknown_person_rules_inert_no_face": {
+      "title": "Die Regeln von Sentinel für unbekannte Personen können nicht auslösen",
+      "description": "Betroffene Regeln:\n\n{rules}\n\n**Warum dies angezeigt wird:** Die Gesichtserkennung ist ausgeschaltet, daher erzeugt nichts das Ergebnis, das diese Regeln benötigen.\n\n**Zum Einschalten:** Lege in den Optionen der Integration die URL des Gesichtserkennungsdienstes fest und aktiviere die Gesichtserkennung, stelle sicher, dass der Eintrag einen Datenbank-Untereintrag hat (dort liegt die Personengalerie), und lege einen Modus der Videoanalyse fest – Gesichter werden nur erkannt, während die Videoanalyse Schnappschüsse verarbeitet. Der Hinweis verschwindet beim nächsten Neuladen, sobald es funktioniert.\n\nDiese Regeln lösen nur bei einem Ergebnis der Gesichtserkennung aus, das besagt, dass eine Person gesehen, aber nicht erkannt wurde, und nur die Gesichtserkennungs-Pipeline erzeugt dieses Ergebnis. Fehlt es, tritt kein Fehler auf und es wird nichts protokolliert, und die Regeln gelten im Sensor `sentinel_health` weiterhin als aktiv, weil sie aus Sicht von Sentinel einfach nie zutreffen.\n\nDie übrigen Regeln von Sentinel sind nicht betroffen: entriegelte Schlösser, offene Zugänge, Geräte- und Batterieprüfungen sowie die Home Assistant- & Netzwerk-Sicherheitsprüfung.\n\n**Für Kameraabdeckung ohne Gesichtserkennung** genehmige eine `motion_detected_*`-Regel aus der Regelerkennung von Sentinel – diese warnen bei Bewegung, während niemand zu Hause ist oder nachts, und benötigen keinen Gesichtserkennungsdienst.\n\nWenn du bewusst ohne diese Regeln arbeiten möchtest, ignoriere diesen Hinweis – er beschreibt die Abdeckung, keinen Fehler."
+    },
+    "unknown_person_rules_inert_no_gallery": {
+      "title": "Die Regeln von Sentinel für unbekannte Personen können nicht auslösen",
+      "description": "Betroffene Regeln:\n\n{rules}\n\n**Warum dies angezeigt wird:** Die Gesichtserkennung ist eingeschaltet, aber dieser Eintrag hat keine Datenbank, daher gibt es keine Personengalerie, mit der jemand erkannt werden könnte. Die Gesichtserkennung wird deshalb beim Start deaktiviert.\n\n**Zur Behebung:** Füge über **+ Einrichten** auf der Integrationsseite einen Datenbank-Untereintrag hinzu. Die Baseline-Anomalieerkennung ist aus demselben Grund aus und funktioniert dann ebenfalls wieder. Der Hinweis verschwindet beim nächsten Neuladen.\n\nDiese Regeln lösen nur bei einem Ergebnis der Gesichtserkennung aus, das besagt, dass eine Person gesehen, aber nicht erkannt wurde, und nur die Gesichtserkennungs-Pipeline erzeugt dieses Ergebnis. Fehlt es, tritt kein Fehler auf und es wird nichts protokolliert, und die Regeln gelten im Sensor `sentinel_health` weiterhin als aktiv, weil sie aus Sicht von Sentinel einfach nie zutreffen.\n\nDie übrigen Regeln von Sentinel sind nicht betroffen: entriegelte Schlösser, offene Zugänge, Geräte- und Batterieprüfungen sowie die Home Assistant- & Netzwerk-Sicherheitsprüfung.\n\n**Für Kameraabdeckung ohne Gesichtserkennung** genehmige eine `motion_detected_*`-Regel aus der Regelerkennung von Sentinel – diese warnen bei Bewegung, während niemand zu Hause ist oder nachts, und benötigen keinen Gesichtserkennungsdienst.\n\nWenn du bewusst ohne diese Regeln arbeiten möchtest, ignoriere diesen Hinweis – er beschreibt die Abdeckung, keinen Fehler."
+    },
+    "unknown_person_rules_inert_no_analyzer": {
+      "title": "Die Regeln von Sentinel für unbekannte Personen können nicht auslösen",
+      "description": "Betroffene Regeln:\n\n{rules}\n\n**Warum dies angezeigt wird:** Die Gesichtserkennung ist eingeschaltet und die Datenbank vorhanden, aber die Videoanalyse ist ausgeschaltet. Gesichter werden nur erkannt, während die Videoanalyse Kameraschnappschüsse verarbeitet, daher wird das Ergebnis nie erzeugt.\n\n**Zur Behebung:** Lege in den Optionen der Integration einen anderen Modus der Videoanalyse als *disable* fest. Der Hinweis verschwindet beim nächsten Neuladen.\n\nDiese Regeln lösen nur bei einem Ergebnis der Gesichtserkennung aus, das besagt, dass eine Person gesehen, aber nicht erkannt wurde, und nur die Gesichtserkennungs-Pipeline erzeugt dieses Ergebnis. Fehlt es, tritt kein Fehler auf und es wird nichts protokolliert, und die Regeln gelten im Sensor `sentinel_health` weiterhin als aktiv, weil sie aus Sicht von Sentinel einfach nie zutreffen.\n\nDie übrigen Regeln von Sentinel sind nicht betroffen: entriegelte Schlösser, offene Zugänge, Geräte- und Batterieprüfungen sowie die Home Assistant- & Netzwerk-Sicherheitsprüfung.\n\n**Für Kameraabdeckung ohne Gesichtserkennung** genehmige eine `motion_detected_*`-Regel aus der Regelerkennung von Sentinel – diese warnen bei Bewegung, während niemand zu Hause ist oder nachts, und benötigen keinen Gesichtserkennungsdienst.\n\nWenn du bewusst ohne diese Regeln arbeiten möchtest, ignoriere diesen Hinweis – er beschreibt die Abdeckung, keinen Fehler."
+    }
+  }
+}

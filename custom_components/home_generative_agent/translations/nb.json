@@ -1,0 +1,519 @@
+{
+  "common": {
+    "feature_overwrite_warning": "⚠️ Funksjoner er allerede konfigurert. Velger du **Grunnleggende oppsett**, overskrives de nåværende leverandørtilordningene med anbefalte standardverdier.",
+    "sentinel_overwrite_warning": "⚠️ Sentinel er allerede konfigurert. Velger du **Grunnleggende oppsett**, overskrives de nåværende innstillingene med anbefalte standardverdier. Unntatte entiteter og koblinger mellom kameraer og innganger beholdes.",
+    "no_model_provider_notice": "Ingen modelleverandør er konfigurert. En standardmodell blir tilordnet så snart en er tilgjengelig.",
+    "no_capable_model_provider_notice": "Ingen av modelleverandørene dine støtter denne funksjonen. Legg til en ny modelleverandør av en støttet type – du kan legge til én leverandør for hver tjeneste du bruker, og hver funksjon kan peke på en egen leverandør.",
+    "supported_provider_types_label": "Støttes her:"
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Generative Agent",
+        "description": "Standardfunksjoner opprettes. Kjør deretter **Oppsett** for å aktivere/konfigurere funksjoner og databasen, og legg så til en **Modelleverandør**."
+      }
+    },
+    "error": {
+      "cannot_connect": "Får ikke kontakt med tjenesten. Kontroller nøkler/URL-er og prøv igjen.",
+      "invalid_auth": "Ugyldig API-nøkkel.",
+      "invalid_pin": "PIN må bestå av 4–10 sifre.",
+      "tool_excluded_and_included": "Et verktøy kan ikke både være utelatt og alltid inkludert. Fjern det fra én av de to listene.",
+      "unknown": "Uventet feil."
+    }
+  },
+  "config_subentries": {
+    "database": {
+      "entry_type": "tjeneste",
+      "abort": {
+        "reconfigure_successful": "Databasekonfigurasjonen ble oppdatert."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurer databasen på nytt",
+        "user": "Sett opp database"
+      },
+      "step": {
+        "set_options": {
+          "title": "Databaseoppsett",
+          "description": "Angi de nødvendige parameterne for databasen",
+          "data": {
+            "username": "Brukernavn for databasen",
+            "password": "Passord for databasen",
+            "host": "Databasevert",
+            "port": "Databaseport (valgfritt)",
+            "db_name": "Databasenavn",
+            "db_params": "Tilkoblingsparametere for databasen (valgfritt)"
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Kunne ikke koble til databasen. Kontroller databaseinnstillingene og prøv igjen.",
+        "invalid_auth": "Ugyldig autorisasjon.",
+        "invalid_uri": "Kunne ikke generere URI.",
+        "unknown": "Uventet feil."
+      }
+    },
+    "model_provider": {
+      "entry_type": "tjeneste",
+      "abort": {
+        "reconfigure_successful": "Modelleverandøren er oppdatert."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurer modelleverandør på nytt",
+        "user": "Legg til modelleverandør"
+      },
+      "step": {
+        "deployment": {
+          "title": "Driftsmiljø",
+          "description": "Velg hvor denne leverandøren kjører. **Edge** er selvhostet på ditt eget nettverk (Ollama, OpenAI Compatible). **Cloud** er et hostet API (OpenAI, Gemini, Anthropic). Valget avgjør bare hvilke leverandørtyper neste trinn tilbyr – du kan legge til så mange leverandører du vil, av begge typer, og la hver funksjon peke på en egen leverandør.",
+          "data": {
+            "deployment": "Driftsmiljø"
+          }
+        },
+        "provider": {
+          "title": "Leverandør",
+          "description": "Velg leverandørtype og navn. Legg til en egen leverandør for hver tjeneste du vil bruke – for eksempel Anthropic for samtale og Gemini for embeddinger, siden Anthropic ikke har noe endepunkt for embeddinger.",
+          "data": {
+            "provider_type": "Leverandør",
+            "name": "Leverandørnavn"
+          },
+          "data_description": {
+            "name": "La navnet stå tomt for å få det oppkalt etter leverandørtypen du velger."
+          }
+        },
+        "settings": {
+          "title": "Leverandørinnstillinger",
+          "description": "Konfigurer leverandørens endepunkt eller påloggingsinformasjon.",
+          "data": {
+            "base_url": "Basis-URL",
+            "api_key": "API-nøkkel",
+            "gemini_api_key": "Gemini API-nøkkel",
+            "anthropic_api_key": "Anthropic API-nøkkel"
+          },
+          "data_description": {
+            "api_key": "Påkrevd for OpenAI. For OpenAI Compatible-leverandører lar du feltet stå tomt eller skriver 'none' hvis endepunktet ikke krever autentisering."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Får ikke kontakt med leverandøren.",
+        "invalid_auth": "Ugyldig påloggingsinformasjon.",
+        "unknown": "Uventet feil."
+      }
+    },
+    "stt_provider": {
+      "entry_type": "tjeneste",
+      "abort": {
+        "reconfigure_successful": "STT-leverandøren er oppdatert."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurer STT-leverandør på nytt",
+        "user": "Legg til STT-leverandør"
+      },
+      "step": {
+        "provider": {
+          "title": "Leverandør av tale-til-tekst",
+          "description": "Velg leverandørtype og navn.",
+          "data": {
+            "provider_type": "Leverandør",
+            "name": "Leverandørnavn"
+          }
+        },
+        "credentials": {
+          "title": "Påloggingsinformasjon",
+          "description": "Velg hvordan STT-leverandøren skal autentiseres. Lokale leverandører kobler i stedet til en URL for en OpenAI-kompatibel server.",
+          "data": {
+            "openai_provider_subentry_id": "Gjenbruk OpenAI-modelleverandør",
+            "api_key": "API-nøkkel",
+            "base_url": "Server-URL"
+          },
+          "data_description": {
+            "api_key": "Påkrevd for OpenAI. Valgfritt for lokale servere som ikke krever autentisering.",
+            "base_url": "OpenAI-kompatibelt endepunkt for den lokale STT-serveren, f.eks. en Speaches-instans. Et manglende /v1-suffiks legges til automatisk."
+          }
+        },
+        "model": {
+          "title": "Modell og avanserte alternativer",
+          "description": "Velg en modell og eventuelle avanserte innstillinger.",
+          "data": {
+            "model_name": "Modell",
+            "language": "Språk (valgfritt)",
+            "prompt": "Ledetekst (valgfritt)",
+            "temperature": "Temperatur (valgfritt)",
+            "translate": "Oversett til engelsk",
+            "response_format": "Svarformat",
+            "request_format": "Forespørselsformat",
+            "extra_body": "Ekstra forespørselsinnhold (JSON, valgfritt)"
+          },
+          "data_description": {
+            "request_format": "Hvordan lyden sendes. Multipart-opplasting er OpenAIs eget format og fungerer overalt. JSON med base64-lyd er OpenRouters eget transkripsjonsformat – velg det bare hvis serveren din dokumenterer det. Det har ikke noe endepunkt for oversettelser og ignorerer Ledetekst-feltet ovenfor.",
+            "extra_body": "Et JSON-objekt som flettes inn i forespørselsinnholdet, for felt HGA ikke viser. På OpenRouter er det her leverandøralternativer som nøkkelordvekting hører hjemme, og de krever JSON-forespørselsformatet. Se STT-delen av dokumentasjonen for et utfyllende eksempel. La stå tomt hvis du er usikker."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Får ikke kontakt med leverandøren.",
+        "invalid_auth": "Ugyldig påloggingsinformasjon.",
+        "invalid_model": "Velg en gyldig modell.",
+        "not_supported": "Leverandøren støttes ikke ennå.",
+        "unknown": "Uventet feil.",
+        "invalid_extra_body": "Ekstra forespørselsinnhold må være et JSON-objekt.",
+        "reserved_extra_body_key": "Ekstra forespørselsinnhold kan ikke angi stream, file eller input_audio – disse styres av Home Generative Agent."
+      }
+    },
+    "tts_provider": {
+      "entry_type": "tjeneste",
+      "abort": {
+        "reconfigure_successful": "TTS-leverandøren er oppdatert."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurer TTS-leverandør på nytt",
+        "user": "Legg til TTS-leverandør"
+      },
+      "step": {
+        "provider": {
+          "title": "Leverandør av tekst-til-tale",
+          "description": "Velg leverandørtype og navn.",
+          "data": {
+            "provider_type": "Leverandør",
+            "name": "Leverandørnavn"
+          }
+        },
+        "credentials": {
+          "title": "Påloggingsinformasjon",
+          "description": "Velg hvordan TTS-leverandøren skal autentiseres. Lokale leverandører kobler i stedet til en URL for en OpenAI-kompatibel server.",
+          "data": {
+            "openai_provider_subentry_id": "Gjenbruk OpenAI-modelleverandør",
+            "api_key": "API-nøkkel",
+            "base_url": "Server-URL"
+          },
+          "data_description": {
+            "api_key": "Påkrevd for OpenAI. Valgfritt for lokale servere som ikke krever autentisering.",
+            "base_url": "OpenAI-kompatibelt endepunkt for den lokale TTS-serveren, f.eks. en Speaches-instans. Et manglende /v1-suffiks legges til automatisk."
+          }
+        },
+        "model": {
+          "title": "Modell, stemme og avanserte alternativer",
+          "description": "Velg modell og stemme, og eventuelle avanserte innstillinger.",
+          "data": {
+            "model_name": "Modell",
+            "voice": "Stemme",
+            "speed": "Hastighet",
+            "instructions": "Stemmeinstruksjoner (valgfritt)"
+          },
+          "data_description": {
+            "voice": "OpenAI: alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer eller verse. Lokalt: en stemme-ID som serverens modell tilbyr, f.eks. af_heart for Kokoro.",
+            "speed": "Multiplikator for avspillingshastighet, fra 0,25 til 4,0. 1,0 er normal hastighet.",
+            "instructions": "Hvordan stemmen skal høres ut, f.eks. tonefall eller tempo. Brukes bare av OpenAI gpt-4o-mini-tts-modeller; ignoreres ellers."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Får ikke kontakt med leverandøren.",
+        "invalid_auth": "Ugyldig påloggingsinformasjon.",
+        "invalid_model": "Velg en gyldig modell.",
+        "not_supported": "Leverandøren støttes ikke ennå.",
+        "unknown": "Uventet feil."
+      }
+    },
+    "sentinel": {
+      "entry_type": "tjeneste",
+      "abort": {
+        "reconfigure_successful": "Sentinel-konfigurasjonen er oppdatert."
+      },
+      "error": {
+        "invalid_camera_entry_links": "Må være et JSON-objekt som tilordner kameraentitets-ID-er til lister med entitets-ID-er for innganger, f.eks. en \"camera.driveway\"-nøkkel med verdien [\"lock.front_door\"].",
+        "invalid_pin": "PIN må bestå av 4–10 sifre.",
+        "quiet_hours_incomplete": "Angi både start og slutt for stilletid (eller sett begge til Deaktivert).",
+        "invalid_quiet_hours": "Stilletid må angis som lokale timer mellom 0 og 23.",
+        "invalid_rule_entity_exclusions": "Må være et JSON-objekt som tilordner en avvikstype (eller \"*\" for alle typer) til lister med entitets-ID-er eller glob-mønstre (bare jokertegnene * og ?, med små bokstaver som i entitets-ID-er), der hver inneholder et punktum og minst ett vanlig tegn, f.eks. en \"appliance_power_duration\"-nøkkel med verdien [\"sensor.ac_power\"], eller en \"camera_entry_unsecured\"-nøkkel med verdien [\"camera.map_*\"]. Oppføringer som treffer alt, som \"*\" eller \"*.*\", er ikke tillatt – bruk typenøkkelen \"*\" i stedet."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurer Sentinel på nytt",
+        "user": "Konfigurer Sentinel"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Oppsett av Sentinel",
+          "description": "Velg hvordan Sentinel-overvåkingen skal konfigureres.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Oppsettstype"
+          }
+        },
+        "basic_settings": {
+          "title": "Sentinel",
+          "description": "Konfigurer de viktigste Sentinel-innstillingene. Alle andre alternativer bruker anbefalte standardverdier.",
+          "data": {
+            "sentinel_enabled": "Aktiver varsling om avvik",
+            "sentinel_daily_digest_enabled": "Aktiver daglig sammendragsvarsel",
+            "sentinel_daily_digest_time": "Tidspunkt for daglig sammendrag (TT:MM:SS)",
+            "critical_action_pin": "PIN for å øke nivå (valgfritt, 4–10 sifre)",
+            "notify_service": "Varslingstjeneste (valgfritt)"
+          }
+        },
+        "settings": {
+          "title": "Sentinel",
+          "description": "Konfigurer proaktiv overvåking og oppdagelse i Sentinel.",
+          "data": {
+            "sentinel_enabled": "Aktiver varsling om avvik",
+            "sentinel_interval_seconds": "Sentinel-intervall (sekunder)",
+            "sentinel_cooldown_minutes": "Sentinel-pause per type (minutter)",
+            "sentinel_entity_cooldown_minutes": "Sentinel-pause per entitet (minutter)",
+            "sentinel_pending_prompt_ttl_minutes": "Levetid for ventende forespørsler (minutter)",
+            "sentinel_discovery_enabled": "Aktiver oppdagelse (krever varsling om avvik)",
+            "sentinel_discovery_interval_seconds": "Oppdagelsesintervall (sekunder)",
+            "sentinel_discovery_max_records": "Maks antall oppdagelsesoppføringer som beholdes",
+            "sentinel_triage_enabled": "Aktiver LLM-triage av funn",
+            "sentinel_triage_timeout_seconds": "Tidsavbrudd for triage (sekunder)",
+            "sentinel_response_language": "Språk for forklaring av funn (valgfritt)",
+            "sentinel_baseline_enabled": "Aktiver innsamling av grunnlinje (krever varsling om avvik)",
+            "sentinel_baseline_update_interval_minutes": "Oppdateringsintervall for grunnlinje (minutter)",
+            "sentinel_baseline_freshness_threshold_seconds": "Terskel for hvor fersk grunnlinjen må være (sekunder)",
+            "sentinel_baseline_weekly_patterns": "Aktiver grunnlinjer per ukedag (gir færre falske alarmer i helgene)",
+            "sentinel_baseline_dow_min_samples": "Minste antall prøver for ukedagsgrunnlinje (uker med data per tidsluke)",
+            "sentinel_baseline_min_samples": "Minste antall prøver i grunnlinjen før avviksvarsler utløses",
+            "sentinel_baseline_sustained_minutes": "Filter for syklisk last: minutter over terskel før varsling (0 = deaktivert)",
+            "sentinel_appliance_power_threshold_w": "Regel for apparateffekt: effektterskel (W)",
+            "sentinel_appliance_duration_min": "Regel for apparateffekt: varighet før varsel (minutter)",
+            "sentinel_network_enabled": "Aktiver sikkerhetsrevisjon av nettverk og Home Assistant",
+            "sentinel_network_offline_device_min": "Terskel for frakoblet sikkerhetsenhet (minutter)",
+            "sentinel_network_unknown_device_grace_min": "Ventetid for nye nettverksenheter (minutter)",
+            "sentinel_network_guest_idle_days": "Terskel for ubrukt gjeste-Wi-Fi (dager)",
+            "sentinel_network_audit_share_details": "Del detaljer fra sikkerhetsrevisjonen med chatmodellen",
+            "sentinel_ha_token_stale_days": "Terskel for gamle langtidstokener (dager)",
+            "sentinel_auth_ip_retention_days": "Oppbevaring av adresser i autentiseringsoversikten (dager)",
+            "explain_enabled": "Aktiver LLM-forklaringer av Sentinel-funn",
+            "sentinel_require_pin_for_level_increase": "Krev PIN for å øke autonominivået",
+            "sentinel_daily_digest_enabled": "Aktiver daglig sammendragsvarsel",
+            "sentinel_daily_digest_time": "Tidspunkt for daglig sammendrag (TT:MM:SS)",
+            "sentinel_quiet_hours_start": "Start på stilletid (demper valgte alvorlighetsgrader)",
+            "sentinel_quiet_hours_end": "Slutt på stilletid",
+            "sentinel_quiet_hours_severities": "Alvorlighetsgrader som dempes i stilletiden",
+            "sentinel_camera_entry_links": "Koblinger mellom kameraer og innganger (JSON, valgfritt)",
+            "sentinel_rule_entity_exclusions_all": "Utelat entiteter fra alle Sentinel-regler (valgfritt)",
+            "sentinel_rule_entity_exclusions": "Avansert: unntak av entiteter per regel (JSON, valgfritt)",
+            "critical_action_pin": "Sentinel-PIN for å øke nivå (valgfritt)",
+            "notify_service": "Varslingstjeneste for Sentinel (valgfritt)"
+          },
+          "data_description": {
+            "explain_enabled": "La en modell formulere teksten i hvert varsel i stedet for å bruke regelens faste sammendrag. Dette endrer bare hvordan et varsel er formulert – aldri om du får det, som er det LLM-triage ovenfor avgjør. Det koster ett modellkall per varsel som faktisk sendes, og kjøres etter triage, så et dempet funn når aldri hit. Sikkerhetsvarslene for Home Assistant og nettverk og varslene om deaktivert alarm beholder alltid nøyaktig samme ordlyd og påvirkes ikke. Angi språk for forklaring av funn nedenfor for å få teksten skrevet på et annet språk. Av som standard.",
+            "sentinel_response_language": "Språk for den LLM-skrevne forklaringen av funn som vises i varsler, f.eks. 'tsjekkisk'. La stå tomt for engelsk. Tittel/sammendrag for oppdagelseskandidater og decision/reason_code/summary fra triage påvirkes ikke – disse tolkes av kode og forblir alltid på engelsk.",
+            "sentinel_rule_entity_exclusions_all": "Velg entiteter Sentinel skal ignorere overalt – f.eks. en mallås på et berøringspanel som bare speiler tilstanden til en annen entitet. Utelatte entiteter fjernes fra alle reglers funn og vekker ikke lenger Sentinel, så et reelt avvik som involverer dem, fanges bare opp ved neste avlesning (standard 5 minutter). Ikke utelat et kamera, en lås eller et alarmpanel du fortsatt vil ha umiddelbare varsler fra.",
+            "sentinel_rule_entity_exclusions": "For å utelate en entitet fra bare én bestemt regel (ikke alle), og for glob-mønstre som camera.map_*, som velgeren ovenfor ikke kan inneholde. Forventer et JSON-objekt der nøklene er avvikstyper og verdiene er lister med entitets-ID-er; nøkkelen \"*\" betyr alle regler. Se Sentinel-dokumentasjonen for eksempler. De fleste trenger ikke dette – bruk velgeren ovenfor i stedet.",
+            "sentinel_triage_enabled": "Kjør ett ekstra LLM-kall per funn som kan dempe varsler med lav verdi. Krever en konfigurert chatmodell og Sentinel-autonominivå 1 eller høyere – på nivå 0 har bryteren ingen effekt. Modellen kan bare dempe eller slippe gjennom et funn – den endrer, oppretter eller handler aldri på et funn, og enhver feil eller tidsavbrudd slipper funnet gjennom. Av som standard.",
+            "sentinel_triage_timeout_seconds": "Hvor lenge det skal ventes på triage-kallet før funnet slippes gjennom uendret.",
+            "sentinel_network_enabled": "Kjører sikkerhetsreglene for Home Assistant og nettverk i hver Sentinel-syklus og lar chatagenten kjøre dem ved behov: administratorkontoer og tilgangstokener, entiteter som er eksponert for taleassistenter, tilleggsporter, radioparinger, UPnP på ruteren og, med en ruterintegrasjon, enhetene på nettverket ditt. Ingenting skanner nettverket – alle fakta kommer fra det Home Assistant allerede vet. Når dette er av, vises disse reglene som inaktive på helsesensoren, og revisjonsverktøyet melder at de er slått av. På som standard.",
+            "sentinel_network_offline_device_min": "Hvor lenge en lås, et alarmpanel eller et kamera kan være utilgjengelig før Sentinel rapporterer det. Standard 30 minutter.",
+            "sentinel_network_unknown_device_grace_min": "Antall minutter det ventes etter at en enhet som er ny på nettverket ditt, først blir sett, før Sentinel rapporterer den, slik at en enhet som kommer og går, likevel blir rapportert, men aldri i det øyeblikket den dukker opp. Krever en ruterintegrasjon. Standard 5; 0 rapporterer ved første observasjon.",
+            "sentinel_network_guest_idle_days": "Antall dager gjeste-Wi-Fi kan være aktivert uten tilkoblede gjester før Sentinel foreslår å slå det av. Krever en ruterintegrasjon som rapporterer gjestenettverket (foreløpig eero). Standard 7.",
+            "sentinel_network_audit_share_details": "Når dette er på, gir chatagentens sikkerhetsrevisjon chatmodellen detaljene i funnene (enhetsnavn, porter, tokennavn) slik at den kan forklare dem. Når det er av, får modellen bare antall, alvorlighetsgrader og faste titler, og den fullstendige rapporten sendes som et vedvarende varsel i Home Assistant når en administrator har spurt (en talesatellitt eller en konto uten administratorrettigheter får bare sammendraget). Nettverksadresser skjules uansett. På som standard.",
+            "sentinel_ha_token_stale_days": "Alder i dager som et langtidstilgangstoken må overstige for å bli rapportert. Home Assistant registrerer ikke når et langtidstoken brukes, så alderen er det eneste som er kjent, og varselet foreslår å bytte ut gamle tokener. Standard 90.",
+            "sentinel_auth_ip_retention_days": "Hvor lenge en adresse som er sett bruke et tilgangstoken, blir værende i oversikten til sikkerhetsrevisjonen. Adresser lagres som enveis-hasher, aldri i klartekst, og maks 20 beholdes per token. Standard 90 dager."
+          }
+        }
+      }
+    },
+    "feature": {
+      "entry_type": "tjeneste",
+      "abort": {
+        "reconfigure_successful": "Funksjonen er oppdatert.",
+        "setup_complete": "Oppsettet er fullført.",
+        "no_provider_for_basic_setup": "Ingen modelleverandør er konfigurert. Legg til en **Modelleverandør** først, og prøv oppsettet på nytt."
+      },
+      "error": {
+        "no_providers": "Ingen modelleverandører er konfigurert.",
+        "cannot_connect": "Kunne ikke koble til databasen. Kontroller innstillingene og prøv igjen.",
+        "invalid_auth": "Ugyldig autorisasjon.",
+        "invalid_uri": "Kunne ikke generere URI.",
+        "unknown": "Uventet feil."
+      },
+      "initiate_flow": {
+        "reconfigure": "Konfigurer funksjon på nytt",
+        "user": "Oppsett"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Oppsett",
+          "description": "Velg en oppsettstype. Grunnleggende oppsett aktiverer alle funksjoner med anbefalte standardverdier. Avansert oppsett gir deg full kontroll over hver funksjon.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Oppsettstype"
+          }
+        },
+        "setup_status": {
+          "title": "Oppsettet er fullført",
+          "description": "Oppsettet er ferdig.\n\n**Aktiverte funksjoner:** {features_enabled}{skipped_section}\n\n**Database:** {database_status}\n\n**Neste trinn:**\n- Kjør **Konfigurer Sentinel** for å aktivere overvåking av avvik.\n- Legg til en **STT-leverandør** for taleinndata.\n- Gå til **Innstillinger → Taleassistenter** for å legge til Home Generative Agent som taleassistent."
+        },
+        "feature_enable": {
+          "title": "Oppsett av funksjoner",
+          "description": "**Samtale** er alltid aktivert. Aktiver eller deaktiver valgfrie funksjoner nedenfor.",
+          "data": {
+            "camera_image_analysis": "Analyse av kamerabilder",
+            "conversation_summary": "Samtalesammendrag",
+            "embedding": "Embeddinger"
+          },
+          "data_description": {
+            "embedding": "Embedding-modell for semantisk minne og verktøysøk. Når dette er av, velges leverandøren automatisk (samtaleleverandøren hvis den støtter embeddinger)."
+          }
+        },
+        "feature_provider": {
+          "title": "Velg modelleverandør",
+          "description": "Velg en modelleverandør for {feature_name}.",
+          "data": {
+            "model_provider_id": "Modelleverandør"
+          }
+        },
+        "feature_model": {
+          "title": "{feature_name}",
+          "description": "Konfigurer modellinnstillinger for denne funksjonen. {provider_notice}",
+          "data": {
+            "model_name": "Modell",
+            "fallback_provider_ids": "Reserveleverandører",
+            "temperature": "Temperatur",
+            "keepalive_s": "Ollama keepalive (sekunder eller Aldri last ut (-1))",
+            "context_size": "Ollama-kontekststørrelse (tokener)",
+            "reasoning": "Tenkning / resonnering",
+            "reasoning_budget": "Tenkebudsjett (tokener)",
+            "openai_api": "OpenAI-API"
+          },
+          "data_description": {
+            "fallback_provider_ids": "Ordnet liste over reserveleverandører. Den første tilgjengelige leverandøren brukes hvis den primære feiler.",
+            "reasoning": "Styrer modellens tenkning for den valgte chatmodellen. Leverandørstandard lar server-/modelloppførselen være uendret; Av og På angir det eksplisitt; innsatsnivåer sendes til leverandører som støtter dem. Innstillingene huskes per modellnavn, så når du bytter modell, gjenopprettes konfigurasjonen for hver modell.",
+            "reasoning_budget": "Valgfritt budsjett for tenketokener for leverandører som støtter det (OpenAI-kompatible servere som llama.cpp, Gemini, Anthropic). La stå tomt for leverandørens standard.",
+            "openai_api": "Hvilket OpenAI-API denne modellen bruker. Automatisk velger det beste for modellen: Responses API for GPT-6-chatmodeller (de kan ikke kombinere verktøy og resonnering på Chat Completions) og for OpenAI-modeller som bare tilbys der (codex, pro), og ellers Chat Completions. Velg ett eksplisitt for å overstyre, for eksempel Responses API på en OpenAI-kompatibel server som støtter det. Hvis det valgte API-et ikke kan betjene en forespørsel, prøves kallet automatisk på nytt (Chat Completions med resonnering slått av for GPT-6-verktøykall, eller Chat Completions når en server ikke har Responses API). Valget huskes per modellnavn."
+          }
+        },
+        "database": {
+          "title": "Databaseoppsett",
+          "description": "Angi de nødvendige parameterne for databasen.",
+          "data": {
+            "username": "Brukernavn for databasen",
+            "password": "Passord for databasen",
+            "host": "Databasevert",
+            "port": "Databaseport (valgfritt)",
+            "db_name": "Databasenavn",
+            "db_params": "Tilkoblingsparametere for databasen (valgfritt)"
+          }
+        },
+        "instructions": {
+          "title": "Legg til en modelleverandør",
+          "description": "Ingen modelleverandør er konfigurert ennå. Legg til en fra **Modelleverandør**."
+        }
+      }
+    }
+  },
+  "selector": {
+    "setup_mode": {
+      "options": {
+        "basic": "Grunnleggende oppsett",
+        "advanced": "Avansert oppsett"
+      }
+    },
+    "db_params": {
+      "fields": {
+        "key": {
+          "name": "Nøkkel",
+          "description": "Navn på tilkoblingsparameter (for eksempel: sslmode, connect_timeout)"
+        },
+        "value": {
+          "name": "Verdi",
+          "description": "Verdi for tilkoblingsparameter (for eksempel: disable, 30)"
+        }
+      }
+    },
+    "stt_request_format": {
+      "options": {
+        "multipart": "Multipart-opplasting (standard)",
+        "json_base64": "JSON med base64-lyd"
+      }
+    },
+    "voice_ack_timing": {
+      "options": {
+        "turn_start": "Så snart agenten starter",
+        "tool_call": "Før det første verktøykallet"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_config_entry": {
+      "message": "Ugyldig konfigurasjonsoppføring. Mottok {config_entry}"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Alternativer for Home Generative Agent",
+        "description": "Konfigurer global oppførsel og ledetekster.",
+        "data": {
+          "face_api_url": "URL til API for ansiktsgjenkjenning (valgfritt)",
+          "prompt": "Instruksjoner",
+          "vlm_response_language": "Språk for kamerabeskrivelser (valgfritt)",
+          "vlm_prompt_extra": "Ekstra instruksjoner for kameraanalyse (valgfritt)",
+          "llm_hass_api": "Styr Home Assistant",
+          "video_analyzer_mode": "Modus for videoanalyse",
+          "video_analyzer_uniqueness_enabled": "Aktiver bildefilter med perseptuell hash (dHash)",
+          "video_analyzer_event_recording_enabled": "Analyser hendelsesopptak fra Ring (ring-mqtt, Ring Protect)",
+          "video_analyzer_motion_camera_map": "Overstyring av bevegelsessensor → kamera (valgfritt)",
+          "notify_service": "Varslingstjeneste for videoanalyse (valgfritt)",
+          "video_analyzer_notification_cooldown_s": "Pause mellom kameravarsler (sekunder)",
+          "video_analyzer_house_notification_cooldown_s": "Pause mellom husvarsler (sekunder)",
+          "face_recognition": "Aktiver ansiktsgjenkjenning",
+          "manage_context_with_tokens": "Metode for kontekststyring",
+          "max_tokens_in_context": "Maks antall tokener i chatkonteksten",
+          "max_messages_in_context": "Maks antall meldinger i chatkonteksten",
+          "critical_action_pin_enabled": "Krev PIN for kritiske handlinger",
+          "critical_action_pin": "PIN for kritiske handlinger (kreves for å låse opp/aktivere/åpne sensitive enheter)",
+          "schema_first_yaml": "Skjemabasert JSON for YAML-forespørsler",
+          "stt_filters_section": "Filtre for taleinndata",
+          "stt_hallucination_patterns": "Ignorerte STT-delstrenger",
+          "stt_hallucination_exact_patterns": "Ignorerte eksakte STT-fraser",
+          "voice_tool_acknowledgement": "Muntlig bekreftelse (kun tale)",
+          "voice_tool_acknowledgement_timing": "Når bekreftelsen skal sies",
+          "tool_retrieval_limit": "Grense for verktøyhenting",
+          "tool_relevance_threshold": "Relevansterskel for verktøy",
+          "tool_exclusions": "Utelatte verktøy",
+          "tool_inclusions": "Alltid inkluderte verktøy"
+        },
+        "data_description": {
+          "prompt": "Angi hvordan LLM-en skal svare. Dette kan være en mal.",
+          "vlm_response_language": "Språk for VLM-beskrivelser av kamerabilder, f.eks. 'tsjekkisk'. La stå tomt for engelsk. Det interne svaret 'Scene unchanged.' forblir alltid på engelsk.",
+          "vlm_prompt_extra": "Ekstra instruksjoner som legges til ledeteksten for VLM-kameraanalyse, f.eks. 'Ignorer biler i innkjørselen'. De erstatter aldri de innebygde reglene.",
+          "video_analyzer_notification_cooldown_s": "0 slår det av. Etter at et kameravarsel har gitt lyd, erstatter senere varsler fra samme kamera innenfor dette antallet sekunder (maks 600) det samme varselet stille med siste bildetekst og bilde, i stedet for å gi lyd igjen. Med ansiktsgjenkjenning på gir den første ukjente personen i denne perioden likevel lyd. Fungerer bare med én enkelt varslingstjeneste for følgeappen (notify.mobile_app_...).",
+          "video_analyzer_house_notification_cooldown_s": "0 slår det av. Én hendelse som ses av flere kameraer, får hvert kamera til å varsle. Etter at et kameravarsel har gitt lyd, legger et varsel fra et hvilket som helst kamera innenfor dette antallet sekunder (maks 60) fortsatt ut sitt eget kort, men stille, og det kameraet holder seg deretter stille så lenge pausen mellom kameravarsler varer, eller dette antallet sekunder hvis det er lengre, regnet fra lyden. Med pausen mellom kameravarsler av er alle kameraer, også det som ga lyd, stille i dette antallet sekunder. Med ansiktsgjenkjenning på gir den første ukjente personen i denne perioden likevel lyd. Start med rundt 15 sekunder: videoen fra hvert kamera analyseres separat, så én hendelse kan nå kameraene med 10 til 30 sekunders mellomrom. Fungerer bare med én enkelt varslingstjeneste for følgeappen (notify.mobile_app_...); kun bekreftet på iOS.",
+          "schema_first_yaml": "Når dette er aktivert, besvares YAML-forespørsler med streng JSON som konverteres til YAML.",
+          "stt_hallucination_patterns": "Én delstreng per linje. Hvis en STT-transkripsjon inneholder en av oppføringene, ignoreres den før LLM-en kjører. Det skilles ikke mellom store og små bokstaver.",
+          "stt_hallucination_exact_patterns": "Én frase per linje. Hvis hele STT-transkripsjonen er lik en av oppføringene, ignoreres den før LLM-en kjører. Det skilles ikke mellom store og små bokstaver.",
+          "voice_tool_acknowledgement": "Sies av en talesatellitt mens agenten jobber med en forespørsel, slik at et tregt spørsmål ikke møtes med stillhet (for eksempel «Et øyeblikk.»). Bare ved taleinteraksjoner, maks én gang per svar; neste alternativ angir når. Krever HGAs tekst-til-tale-motor eller en annen motor med strømming. Skriv den på assistentens språk. La stå tomt for å slå det av.",
+          "voice_tool_acknowledgement_timing": "«Så snart agenten starter» dekker hele ventetiden, inkludert tiden en lokal modell bruker før første ord, men sies også før et svar som ikke trenger verktøy (så bruk helst en nøytral formulering som «Et øyeblikk.»). «Før det første verktøykallet» sies bare ved interaksjoner som bruker verktøy, etter at modellen har startet.",
+          "tool_retrieval_limit": "Maks antall verktøy som hentes basert på semantisk likhet med brukerens forespørsel.",
+          "tool_relevance_threshold": "Minste semantiske likhetspoeng (0,0 til 1,0) som kreves for at et verktøy skal hentes.",
+          "tool_exclusions": "Verktøy som er krysset av her, tilbys aldri til modellen og kjøres aldri, selv om den ber om et ved navn. La stå tomt for å gjøre alle verktøy i alle valgte API-er tilgjengelige. Verktøy som en server legger til senere, er tilgjengelige som standard.",
+          "tool_inclusions": "Verktøy som er krysset av her, tilbys alltid til modellen: de legges til etter vektorbasert verktøyhenting, i tillegg til hentegrensen. Nyttig for generelle verktøy, som nettsøk, som likhetssøket kanskje ikke velger. Modellen avgjør fortsatt om de skal brukes. Et verktøy kan ikke både være utelatt og alltid inkludert.",
+          "video_analyzer_uniqueness_enabled": "Hopp over bilder som er visuelt nesten identiske, før VLM-analysen. Advarsel: Når dette aktiveres, fjernes bevegelseskonteksten mellom bildene som sammendragsmodellen bruker for å beskrive bevegelse. Aktiver bare hvis en statisk scene gir for mange duplikater og du godtar at sammenhengen i bevegelsene kan gå tapt.",
+          "video_analyzer_event_recording_enabled": "Når en ring-mqtt event_select-entitet publiserer en signert recordingUrl med en ny eventId, lastes hendelsens MP4 ned, inntil 8 bilder hentes ut med ffmpeg, og disse analyseres i stedet for det lagrede intervallbildet, som på batterikameraer kan være opptil 10 minutter eldre enn hendelsen. Krever et Ring Protect-abonnement (kameraer uten recordingUrl fortsetter å bruke stillbilder) og ffmpeg-programmet som følger med det offisielle Home Assistant-bildet.",
+          "video_analyzer_motion_camera_map": "Én overstyring per linje: binary_sensor.X_motion: camera.Y — bruk dette når den automatiske tilordningen velger feil kamera. La stå tomt for å bruke tilordning basert på enhet og navn."
+        }
+      }
+    }
+  },
+  "issues": {
+    "database_not_configured": {
+      "title": "Home Generative Agent kjører uten database",
+      "description": "Denne oppføringen har ingen databaseunderoppføring, så den kjører bare med lagring i minnet. Samtalehistorikken går tapt ved hver ny innlasting eller omstart, langtidsminnet (samtalesammendrag, gjenkalling av kameraaktivitet, samtykke til aktivering av alarm) og ansiktsgjenkjenning (persongalleriet) er utilgjengelig, og Sentinels grunnlinjebaserte avviksdetektor er av. Sentinel-regler, varsler og revisjonsloggen fungerer fortsatt.\n\nDatabaseunderoppføringen opprettes med **+ Oppsett** på integrasjonssiden: **Grunnleggende** oppretter den med anbefalte standardverdier, og **Avansert** avsluttes med trinnet **Databaseoppsett**, som tester tilkoblingen før lagring. Denne tilstanden oppstår enten når **+ Oppsett** ikke er kjørt etter at integrasjonen ble lagt til, eller når den avanserte veiviseren lukkes ved dette siste trinnet (funksjonene lagres før det, så oppføringen lastes likevel).\n\nFor å løse det åpner du **Innstillinger → Enheter og tjenester → Home Generative Agent**, klikker **+ Oppsett**, velger **Avansert**, går gjennom funksjonene og fyller ut skjemaet **Databaseoppsett**. Med den medfølgende PostgreSQL med pgvector-appen er standardverdiene (`localhost`, port `5432`, database `ha_db`, bruker `ha_user`) riktige. Dette problemet forsvinner så snart oppføringen lastes med en databaseunderoppføring."
+    },
+    "pin_bypassed_by_local_intents": {
+      "title": "PIN for kritiske handlinger beskytter ikke talekommandoer",
+      "description": "Berørte taleassistent-pipelines: {pipelines}.\n\nDisse bruker Home Generative Agent som samtaleagent og har **Foretrekk å håndtere kommandoer lokalt** aktivert. Home Assistant sammenligner da enkle kommandoer med sine egne innebygde setninger og utfører dem selv, også opplåsing av en lås, før agenten i det hele tatt kalles. Agenten ser aldri kommandoen, så PIN for kritiske handlinger kan ikke holde den tilbake for bekreftelse.\n\nFor å løse det åpner du **Innstillinger → Taleassistenter**, redigerer hver pipeline som er oppført ovenfor, og slår av **Foretrekk å håndtere kommandoer lokalt**.\n\nHvis en lås eller et dekke aldri skal kunne styres med tale, bør du også slutte å eksponere den under **Innstillinger → Taleassistenter → Eksponer**. Det er den eneste innstillingen som også dekker setningsutløsere og veier utenom agenten."
+    },
+    "unknown_person_rules_inert_no_face": {
+      "title": "Sentinels regler for ukjente personer kan ikke utløses",
+      "description": "Berørte regler:\n\n{rules}\n\n**Hvorfor dette vises:** ansiktsgjenkjenning er slått av, så ingenting produserer resultatet disse reglene trenger.\n\n**Slik slår du det på:** angi URL-en til ansiktstjenesten og aktiver ansiktsgjenkjenning i integrasjonens alternativer, sørg for at oppføringen har en databaseunderoppføring (persongalleriet ligger der), og angi en modus for videoanalyse — ansikter gjenkjennes bare mens analysen behandler stillbilder. Varselet forsvinner ved neste innlasting når det fungerer.\n\nDisse reglene utløses bare av et resultat fra ansiktsgjenkjenning som sier at en person ble sett, men ikke gjenkjent, og bare ansiktsgjenkjenningspipelinen produserer det. Ingen feil oppstår og ingenting logges når det mangler, og reglene telles fortsatt som aktive på `sentinel_health`-sensoren, fordi de sett fra Sentinels side rett og slett aldri treffer.\n\nSentinels andre regler påvirkes ikke: ulåste låser, åpne innganger, kontroller av apparater og batterier, og sikkerhetsrevisjonen av Home Assistant og nettverk.\n\n**For kameradekning uten ansiktsgjenkjenning** kan du godkjenne en `motion_detected_*`-regel fra Sentinels regeloppdagelse — disse varsler om bevegelse når ingen er hjemme, eller om natten, og trenger ingen ansiktstjeneste.\n\nHvis du ønsker å kjøre uten disse reglene, kan du ignorere dette varselet — det er en opplysning om dekning, ikke en feil."
+    },
+    "unknown_person_rules_inert_no_gallery": {
+      "title": "Sentinels regler for ukjente personer kan ikke utløses",
+      "description": "Berørte regler:\n\n{rules}\n\n**Hvorfor dette vises:** ansiktsgjenkjenning er slått på, men denne oppføringen har ingen database, så det finnes ikke noe persongalleri å gjenkjenne noen mot. Ansiktsgjenkjenning deaktiveres derfor ved oppstart.\n\n**Slik løser du det:** legg til en databaseunderoppføring med **+ Oppsett** på integrasjonssiden. Grunnlinjebasert avviksdeteksjon er av av samme grunn og vil også begynne å fungere igjen. Varselet forsvinner ved neste innlasting.\n\nDisse reglene utløses bare av et resultat fra ansiktsgjenkjenning som sier at en person ble sett, men ikke gjenkjent, og bare ansiktsgjenkjenningspipelinen produserer det. Ingen feil oppstår og ingenting logges når det mangler, og reglene telles fortsatt som aktive på `sentinel_health`-sensoren, fordi de sett fra Sentinels side rett og slett aldri treffer.\n\nSentinels andre regler påvirkes ikke: ulåste låser, åpne innganger, kontroller av apparater og batterier, og sikkerhetsrevisjonen av Home Assistant og nettverk.\n\n**For kameradekning uten ansiktsgjenkjenning** kan du godkjenne en `motion_detected_*`-regel fra Sentinels regeloppdagelse — disse varsler om bevegelse når ingen er hjemme, eller om natten, og trenger ingen ansiktstjeneste.\n\nHvis du ønsker å kjøre uten disse reglene, kan du ignorere dette varselet — det er en opplysning om dekning, ikke en feil."
+    },
+    "unknown_person_rules_inert_no_analyzer": {
+      "title": "Sentinels regler for ukjente personer kan ikke utløses",
+      "description": "Berørte regler:\n\n{rules}\n\n**Hvorfor dette vises:** ansiktsgjenkjenning er slått på og databasen finnes, men videoanalysen er slått av. Ansikter gjenkjennes bare mens analysen behandler stillbilder fra kameraer, så ingenting produserer noen gang resultatet.\n\n**Slik løser du det:** angi en annen modus for videoanalyse enn *disable* i integrasjonens alternativer. Varselet forsvinner ved neste innlasting.\n\nDisse reglene utløses bare av et resultat fra ansiktsgjenkjenning som sier at en person ble sett, men ikke gjenkjent, og bare ansiktsgjenkjenningspipelinen produserer det. Ingen feil oppstår og ingenting logges når det mangler, og reglene telles fortsatt som aktive på `sentinel_health`-sensoren, fordi de sett fra Sentinels side rett og slett aldri treffer.\n\nSentinels andre regler påvirkes ikke: ulåste låser, åpne innganger, kontroller av apparater og batterier, og sikkerhetsrevisjonen av Home Assistant og nettverk.\n\n**For kameradekning uten ansiktsgjenkjenning** kan du godkjenne en `motion_detected_*`-regel fra Sentinels regeloppdagelse — disse varsler om bevegelse når ingen er hjemme, eller om natten, og trenger ingen ansiktstjeneste.\n\nHvis du ønsker å kjøre uten disse reglene, kan du ignorere dette varselet — det er en opplysning om dekning, ikke en feil."
+    }
+  }
+}

@@ -1,0 +1,519 @@
+{
+  "common": {
+    "feature_overwrite_warning": "⚠️ Ominaisuudet on jo määritetty. Jos valitset **Perusmäärityksen**, nykyiset palveluntarjoajamäärityksesi korvataan suositelluilla oletuksilla.",
+    "sentinel_overwrite_warning": "⚠️ Sentinel on jo määritetty. Jos valitset **Perusmäärityksen**, nykyiset asetuksesi korvataan suositelluilla oletuksilla. Entiteettien poissulkemiset ja kameroiden linkitykset sisäänkäynteihin säilytetään.",
+    "no_model_provider_notice": "Mallipalveluntarjoajaa ei ole määritetty. Oletusmalli määritetään, kun sellainen on saatavilla.",
+    "no_capable_model_provider_notice": "Mikään mallipalveluntarjoajistasi ei tue tätä ominaisuutta. Lisää uusi tuettua tyyppiä oleva mallipalveluntarjoaja - voit lisätä palveluntarjoajan jokaiselle käyttämällesi palvelulle, ja jokainen ominaisuus voi käyttää eri palveluntarjoajaa.",
+    "supported_provider_types_label": "Tuetut tässä:"
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Generative Agent",
+        "description": "Oletusominaisuuksia luodaan. Suorita seuraavaksi **Määritys** ottaaksesi ominaisuudet ja tietokannan käyttöön ja määrittääksesi ne, ja lisää sitten **Mallipalveluntarjoaja**."
+      }
+    },
+    "error": {
+      "cannot_connect": "Palveluun ei saada yhteyttä. Tarkista avaimet/URL-osoitteet ja yritä uudelleen.",
+      "invalid_auth": "Virheellinen API-avain.",
+      "invalid_pin": "PIN-koodin on oltava 4–10 numeroa.",
+      "tool_excluded_and_included": "Työkalu ei voi olla sekä poissuljettu että aina mukana. Poista se toisesta luettelosta.",
+      "unknown": "Odottamaton virhe."
+    }
+  },
+  "config_subentries": {
+    "database": {
+      "entry_type": "palvelu",
+      "abort": {
+        "reconfigure_successful": "Tietokannan määritykset päivitettiin."
+      },
+      "initiate_flow": {
+        "reconfigure": "Määritä tietokanta uudelleen",
+        "user": "Määritä tietokanta"
+      },
+      "step": {
+        "set_options": {
+          "title": "Tietokannan määritys",
+          "description": "Anna tietokannan tarvittavat parametrit",
+          "data": {
+            "username": "Tietokannan käyttäjätunnus",
+            "password": "Tietokannan salasana",
+            "host": "Tietokannan isäntä",
+            "port": "Tietokannan portti (valinnainen)",
+            "db_name": "Tietokannan nimi",
+            "db_params": "Tietokantayhteyden parametrit (valinnainen)"
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Tietokantaan ei saatu yhteyttä. Tarkista tietokannan asetukset ja yritä uudelleen.",
+        "invalid_auth": "Virheellinen valtuutus.",
+        "invalid_uri": "URI-osoitetta ei voitu muodostaa.",
+        "unknown": "Odottamaton virhe."
+      }
+    },
+    "model_provider": {
+      "entry_type": "palvelu",
+      "abort": {
+        "reconfigure_successful": "Mallipalveluntarjoaja päivitettiin."
+      },
+      "initiate_flow": {
+        "reconfigure": "Määritä mallipalveluntarjoaja uudelleen",
+        "user": "Lisää mallipalveluntarjoaja"
+      },
+      "step": {
+        "deployment": {
+          "title": "Käyttöympäristö",
+          "description": "Valitse, missä tämä palveluntarjoaja toimii. **Edge** on itse ylläpidetty omassa verkossasi (Ollama, OpenAI Compatible). **Cloud** on pilvessä toimiva API (OpenAI, Gemini, Anthropic). Tämä valinta määrää vain, mitä palveluntarjoajatyyppejä seuraavassa vaiheessa tarjotaan - voit lisätä niin monta palveluntarjoajaa kuin haluat, kumpaa tahansa tyyppiä, ja ohjata jokaisen ominaisuuden eri palveluntarjoajalle.",
+          "data": {
+            "deployment": "Käyttöympäristö"
+          }
+        },
+        "provider": {
+          "title": "Palveluntarjoaja",
+          "description": "Valitse palveluntarjoajan tyyppi ja nimi. Lisää erillinen palveluntarjoaja jokaiselle palvelulle, jota haluat käyttää - esimerkiksi Anthropic keskusteluun ja Gemini upotuksiin, koska Anthropicilla ei ole upotusrajapintaa.",
+          "data": {
+            "provider_type": "Palveluntarjoaja",
+            "name": "Palveluntarjoajan nimi"
+          },
+          "data_description": {
+            "name": "Jätä nimi tyhjäksi, niin se nimetään valitsemasi palveluntarjoajatyypin mukaan."
+          }
+        },
+        "settings": {
+          "title": "Palveluntarjoajan asetukset",
+          "description": "Määritä palveluntarjoajan päätepiste tai tunnistetiedot.",
+          "data": {
+            "base_url": "Perus-URL",
+            "api_key": "API-avain",
+            "gemini_api_key": "Gemini API-avain",
+            "anthropic_api_key": "Anthropic API-avain"
+          },
+          "data_description": {
+            "api_key": "Pakollinen OpenAI:lle. OpenAI Compatible -palveluntarjoajilla jätä tyhjäksi tai kirjoita 'none', jos päätepiste ei vaadi todennusta."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Palveluntarjoajaan ei saada yhteyttä.",
+        "invalid_auth": "Virheelliset tunnistetiedot.",
+        "unknown": "Odottamaton virhe."
+      }
+    },
+    "stt_provider": {
+      "entry_type": "palvelu",
+      "abort": {
+        "reconfigure_successful": "STT-palveluntarjoaja päivitettiin."
+      },
+      "initiate_flow": {
+        "reconfigure": "Määritä STT-palveluntarjoaja uudelleen",
+        "user": "Lisää STT-palveluntarjoaja"
+      },
+      "step": {
+        "provider": {
+          "title": "Puheentunnistuksen palveluntarjoaja",
+          "description": "Valitse palveluntarjoajan tyyppi ja nimi.",
+          "data": {
+            "provider_type": "Palveluntarjoaja",
+            "name": "Palveluntarjoajan nimi"
+          }
+        },
+        "credentials": {
+          "title": "Tunnistetiedot",
+          "description": "Valitse, miten STT-palveluntarjoaja todennetaan. Paikalliset palveluntarjoajat muodostavat sen sijaan yhteyden OpenAI-yhteensopivan palvelimen URL-osoitteeseen.",
+          "data": {
+            "openai_provider_subentry_id": "Käytä uudelleen OpenAI-mallipalveluntarjoajaa",
+            "api_key": "API-avain",
+            "base_url": "Palvelimen URL"
+          },
+          "data_description": {
+            "api_key": "Pakollinen OpenAI:lle. Valinnainen paikallisille palvelimille, jotka eivät vaadi todennusta.",
+            "base_url": "Paikallisen STT-palvelimen OpenAI-yhteensopiva päätepiste, esim. Speaches-instanssi. Puuttuva /v1-pääte lisätään automaattisesti."
+          }
+        },
+        "model": {
+          "title": "Malli ja lisäasetukset",
+          "description": "Valitse malli ja valinnaiset lisäasetukset.",
+          "data": {
+            "model_name": "Malli",
+            "language": "Kieli (valinnainen)",
+            "prompt": "Kehote (valinnainen)",
+            "temperature": "Lämpötila (valinnainen)",
+            "translate": "Käännä englanniksi",
+            "response_format": "Vastauksen muoto",
+            "request_format": "Pyynnön muoto",
+            "extra_body": "Pyynnön lisärunko (JSON, valinnainen)"
+          },
+          "data_description": {
+            "request_format": "Miten ääni lähetetään. Multipart-lähetys on OpenAI:n oma muoto ja toimii kaikkialla. JSON ja base64-ääni on OpenRouterin oma litterointimuoto - valitse se vain, jos palvelimesi dokumentaatio mainitsee sen. Siinä ei ole käännöspäätepistettä, ja se ohittaa yllä olevan Kehote-kentän.",
+            "extra_body": "JSON-objekti, joka yhdistetään pyynnön runkoon kenttiä varten, joita HGA ei tarjoa. OpenRouterissa tänne lisätään palveluntarjoajan asetukset, kuten avainsanojen painotus, ja ne vaativat JSON-pyyntömuodon. Katso valmis esimerkki dokumentaation STT-osiosta. Jätä tyhjäksi, jos et ole varma."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Palveluntarjoajaan ei saada yhteyttä.",
+        "invalid_auth": "Virheelliset tunnistetiedot.",
+        "invalid_model": "Valitse kelvollinen malli.",
+        "not_supported": "Palveluntarjoajaa ei vielä tueta.",
+        "unknown": "Odottamaton virhe.",
+        "invalid_extra_body": "Pyynnön lisärungon on oltava JSON-objekti.",
+        "reserved_extra_body_key": "Pyynnön lisärunko ei voi asettaa kenttiä stream, file tai input_audio - Home Generative Agent hallitsee niitä."
+      }
+    },
+    "tts_provider": {
+      "entry_type": "palvelu",
+      "abort": {
+        "reconfigure_successful": "TTS-palveluntarjoaja päivitettiin."
+      },
+      "initiate_flow": {
+        "reconfigure": "Määritä TTS-palveluntarjoaja uudelleen",
+        "user": "Lisää TTS-palveluntarjoaja"
+      },
+      "step": {
+        "provider": {
+          "title": "Puhesynteesin palveluntarjoaja",
+          "description": "Valitse palveluntarjoajan tyyppi ja nimi.",
+          "data": {
+            "provider_type": "Palveluntarjoaja",
+            "name": "Palveluntarjoajan nimi"
+          }
+        },
+        "credentials": {
+          "title": "Tunnistetiedot",
+          "description": "Valitse, miten TTS-palveluntarjoaja todennetaan. Paikalliset palveluntarjoajat muodostavat sen sijaan yhteyden OpenAI-yhteensopivan palvelimen URL-osoitteeseen.",
+          "data": {
+            "openai_provider_subentry_id": "Käytä uudelleen OpenAI-mallipalveluntarjoajaa",
+            "api_key": "API-avain",
+            "base_url": "Palvelimen URL"
+          },
+          "data_description": {
+            "api_key": "Pakollinen OpenAI:lle. Valinnainen paikallisille palvelimille, jotka eivät vaadi todennusta.",
+            "base_url": "Paikallisen TTS-palvelimen OpenAI-yhteensopiva päätepiste, esim. Speaches-instanssi. Puuttuva /v1-pääte lisätään automaattisesti."
+          }
+        },
+        "model": {
+          "title": "Malli, ääni ja lisäasetukset",
+          "description": "Valitse malli ja ääni sekä valinnaiset lisäasetukset.",
+          "data": {
+            "model_name": "Malli",
+            "voice": "Ääni",
+            "speed": "Nopeus",
+            "instructions": "Ääniohjeet (valinnainen)"
+          },
+          "data_description": {
+            "voice": "OpenAI: alloy, ash, ballad, cedar, coral, echo, fable, marin, nova, onyx, sage, shimmer tai verse. Paikallinen: palvelimen mallin tarjoaman äänen tunniste, esim. af_heart Kokorolle.",
+            "speed": "Toistonopeuden kerroin, 0.25–4.0. 1.0 on normaali nopeus.",
+            "instructions": "Miltä äänen pitäisi kuulostaa, esim. sävy tai tahti. Käytössä vain OpenAI:n gpt-4o-mini-tts-malleissa; muualla ohitetaan."
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Palveluntarjoajaan ei saada yhteyttä.",
+        "invalid_auth": "Virheelliset tunnistetiedot.",
+        "invalid_model": "Valitse kelvollinen malli.",
+        "not_supported": "Palveluntarjoajaa ei vielä tueta.",
+        "unknown": "Odottamaton virhe."
+      }
+    },
+    "sentinel": {
+      "entry_type": "palvelu",
+      "abort": {
+        "reconfigure_successful": "Sentinelin määritykset päivitettiin."
+      },
+      "error": {
+        "invalid_camera_entry_links": "Arvon on oltava JSON-objekti, joka liittää kameroiden entiteettitunnukset sisäänkäyntien entiteettitunnusten luetteloihin, esim. avain \"camera.driveway\" arvolla [\"lock.front_door\"].",
+        "invalid_pin": "PIN-koodin on oltava 4–10 numeroa.",
+        "quiet_hours_incomplete": "Aseta sekä hiljaisten tuntien alku että loppu (tai aseta molemmat tilaan Ei käytössä).",
+        "invalid_quiet_hours": "Hiljaisten tuntien on oltava paikallisia tunteja väliltä 0–23.",
+        "invalid_rule_entity_exclusions": "Arvon on oltava JSON-objekti, joka liittää poikkeamatyypin (tai \"*\" kaikille tyypeille) entiteettitunnusten tai glob-kuvioiden luetteloihin (vain jokerimerkit * ja ?, entiteettitunnusten pienet kirjaimet). Jokaisessa on oltava piste ja vähintään yksi kirjaimellinen merkki, esim. avain \"appliance_power_duration\" arvolla [\"sensor.ac_power\"] tai avain \"camera_entry_unsecured\" arvolla [\"camera.map_*\"]. Kaiken kattavat merkinnät, kuten \"*\" tai \"*.*\", eivät ole sallittuja — käytä sen sijaan tyyppiavainta \"*\"."
+      },
+      "initiate_flow": {
+        "reconfigure": "Määritä Sentinel uudelleen",
+        "user": "Määritä Sentinel"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Sentinelin määritys",
+          "description": "Valitse, miten Sentinel-valvonta määritetään.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Määritystapa"
+          }
+        },
+        "basic_settings": {
+          "title": "Sentinel",
+          "description": "Määritä Sentinelin keskeiset asetukset. Kaikki muut asetukset käyttävät suositeltuja oletuksia.",
+          "data": {
+            "sentinel_enabled": "Ota poikkeamahälytykset käyttöön",
+            "sentinel_daily_digest_enabled": "Ota päivittäinen yhteenvetoilmoitus käyttöön",
+            "sentinel_daily_digest_time": "Päivittäisen yhteenvedon aika (HH:MM:SS)",
+            "critical_action_pin": "Tason nostamisen PIN (valinnainen, 4–10 numeroa)",
+            "notify_service": "Ilmoituspalvelu (valinnainen)"
+          }
+        },
+        "settings": {
+          "title": "Sentinel",
+          "description": "Määritä Sentinelin ennakoiva valvonta ja sääntöjen etsintä.",
+          "data": {
+            "sentinel_enabled": "Ota poikkeamahälytykset käyttöön",
+            "sentinel_interval_seconds": "Sentinelin tarkistusväli (sekuntia)",
+            "sentinel_cooldown_minutes": "Sentinelin odotusaika tyyppiä kohden (minuuttia)",
+            "sentinel_entity_cooldown_minutes": "Sentinelin odotusaika entiteettiä kohden (minuuttia)",
+            "sentinel_pending_prompt_ttl_minutes": "Odottavan kehotteen elinaika (minuuttia)",
+            "sentinel_discovery_enabled": "Ota sääntöjen etsintä käyttöön (vaatii poikkeamahälytykset)",
+            "sentinel_discovery_interval_seconds": "Etsinnän väli (sekuntia)",
+            "sentinel_discovery_max_records": "Säilytettävien etsintätietueiden enimmäismäärä",
+            "sentinel_triage_enabled": "Ota havaintojen LLM-luokittelu käyttöön",
+            "sentinel_triage_timeout_seconds": "Luokittelun aikakatkaisu (sekuntia)",
+            "sentinel_response_language": "Havaintojen selitysten kieli (valinnainen)",
+            "sentinel_baseline_enabled": "Ota perustasotietojen keruu käyttöön (vaatii poikkeamahälytykset)",
+            "sentinel_baseline_update_interval_minutes": "Perustason päivitysväli (minuuttia)",
+            "sentinel_baseline_freshness_threshold_seconds": "Perustason tuoreuden kynnys (sekuntia)",
+            "sentinel_baseline_weekly_patterns": "Ota viikonpäiväkohtaiset perustasot käyttöön (vähentää viikonlopun vääriä hälytyksiä)",
+            "sentinel_baseline_dow_min_samples": "Viikonpäiväperustason vähimmäisnäytteet (viikkoja tietoa aikaväliä kohden)",
+            "sentinel_baseline_min_samples": "Perustason vähimmäisnäytteet ennen poikkeamahälytyksiä",
+            "sentinel_baseline_sustained_minutes": "Jaksollisen kuorman suodatin: minuutit kynnyksen yläpuolella ennen hälytystä (0 = ei käytössä)",
+            "sentinel_appliance_power_threshold_w": "Laitteen tehosääntö: tehokynnys (W)",
+            "sentinel_appliance_duration_min": "Laitteen tehosääntö: kesto ennen hälytystä (minuuttia)",
+            "sentinel_network_enabled": "Ota verkon ja Home Assistantin tietoturvatarkastus käyttöön",
+            "sentinel_network_offline_device_min": "Turvalaitteen offline-kynnys (minuuttia)",
+            "sentinel_network_unknown_device_grace_min": "Uuden verkkolaitteen armonaika (minuuttia)",
+            "sentinel_network_guest_idle_days": "Vieras-Wi-Fin käyttämättömyyskynnys (päivää)",
+            "sentinel_network_audit_share_details": "Jaa tietoturvatarkastuksen tiedot keskustelumallin kanssa",
+            "sentinel_ha_token_stale_days": "Vanhentuneen pitkäaikaisen käyttötunnuksen kynnys (päivää)",
+            "sentinel_auth_ip_retention_days": "Todennusluettelon osoitteiden säilytysaika (päivää)",
+            "explain_enabled": "Ota LLM-selitykset käyttöön Sentinelin havainnoille",
+            "sentinel_require_pin_for_level_increase": "Vaadi PIN autonomiatason nostamiseen",
+            "sentinel_daily_digest_enabled": "Ota päivittäinen yhteenvetoilmoitus käyttöön",
+            "sentinel_daily_digest_time": "Päivittäisen yhteenvedon aika (HH:MM:SS)",
+            "sentinel_quiet_hours_start": "Hiljaisten tuntien alku (vaimentaa valitut vakavuustasot)",
+            "sentinel_quiet_hours_end": "Hiljaisten tuntien loppu",
+            "sentinel_quiet_hours_severities": "Hiljaisina tunteina vaimennettavat vakavuustasot",
+            "sentinel_camera_entry_links": "Kameroiden linkitykset sisäänkäynteihin (JSON, valinnainen)",
+            "sentinel_rule_entity_exclusions_all": "Sulje entiteetit pois kaikista Sentinelin säännöistä (valinnainen)",
+            "sentinel_rule_entity_exclusions": "Edistynyt: sääntökohtaiset entiteettien poissulkemiset (JSON, valinnainen)",
+            "critical_action_pin": "Sentinelin tason nostamisen PIN (valinnainen)",
+            "notify_service": "Sentinelin ilmoituspalvelu (valinnainen)"
+          },
+          "data_description": {
+            "explain_enabled": "Anna mallin kirjoittaa kunkin hälytyksen sanamuoto säännön oman kiinteän yhteenvedon sijaan. Tämä muuttaa vain hälytyksen sanamuotoa -- ei koskaan sitä, saatko hälytyksen, mistä päättää yllä oleva LLM-luokittelu. Se maksaa yhden mallikutsun jokaista todella lähetettyä hälytystä kohden ja suoritetaan luokittelun jälkeen, joten vaimennettu havainto ei koskaan päädy siihen. Home Assistantin ja verkon tietoturvahälytykset sekä hälytysjärjestelmän poiskytkentähälytykset säilyttävät aina tarkan sanamuotonsa, eikä tämä vaikuta niihin. Aseta alla havaintojen selitysten kieli, jos haluat sanamuodon toisella kielellä. Oletuksena pois päältä.",
+            "sentinel_response_language": "Ilmoituksissa näytettävän LLM:n kirjoittaman havaintoselityksen kieli, esim. 'Finnish'. Jätä tyhjäksi, niin käytetään englantia. Etsintäehdokkaiden otsikko/yhteenveto ja luokittelun päätös/reason_code/yhteenveto eivät muutu -- koodi jäsentää ne, joten ne ovat aina englanniksi.",
+            "sentinel_rule_entity_exclusions_all": "Valitse entiteetit, jotka Sentinelin tulee ohittaa kaikkialla -- esim. kosketuspaneelin mallilukko, joka vain heijastaa toisen entiteetin tilaa. Poissuljetut entiteetit poistetaan kaikkien sääntöjen havainnoista, eivätkä ne enää herätä Sentineliä, joten niihin liittyvä todellinen poikkeama havaitaan vasta seuraavalla kyselykierroksella (oletuksena 5 minuuttia). Älä sulje pois kameraa, lukkoa tai hälytyspaneelia, josta haluat edelleen välittömät hälytykset.",
+            "sentinel_rule_entity_exclusions": "Entiteetin poissulkemiseen vain yhdestä tietystä säännöstä (ei kaikista) sekä glob-kuvioille, kuten camera.map_*, joita yllä oleva valitsin ei tue. Odottaa JSON-objektia, jonka avaimet ovat poikkeamatyyppejä ja arvot entiteettitunnusten luetteloita; avain \"*\" tarkoittaa kaikkia sääntöjä. Katso esimerkkejä Sentinelin dokumentaatiosta. Useimmat eivät tarvitse tätä -- käytä sen sijaan yllä olevaa valitsinta.",
+            "sentinel_triage_enabled": "Suorita yksi ylimääräinen LLM-kutsu havaintoa kohden, joka voi vaimentaa vähäarvoiset hälytykset. Vaatii määritetyn keskustelumallin ja Sentinelin autonomiatason 1 tai korkeamman -- tasolla 0 kytkimellä ei ole vaikutusta. Malli voi vain vaimentaa tai päästää havainnon läpi -- se ei koskaan muuta tai luo havaintoja eikä toimi niiden perusteella, ja mikä tahansa virhe tai aikakatkaisu päästää havainnon läpi. Oletuksena pois päältä.",
+            "sentinel_triage_timeout_seconds": "Kuinka kauan luokittelukutsua odotetaan, ennen kuin havainto päästetään läpi muuttamattomana.",
+            "sentinel_network_enabled": "Suorittaa Home Assistantin ja verkon tietoturvasäännöt jokaisella Sentinel-kierroksella ja antaa keskusteluagentin suorittaa ne pyynnöstä: järjestelmänvalvojatilit ja käyttötunnukset, puheavustajille paljastetut entiteetit, lisäosien portit, radiopariliitokset, reitittimen UPnP sekä reititinintegraation kanssa verkkosi laitteet. Mikään ei skannaa verkkoa -- kaikki tieto tulee siitä, mitä Home Assistant jo tietää. Pois päältä nämä säännöt näkyvät terveysanturissa passiivisina, ja tarkastustyökalu ilmoittaa niiden olevan pois päältä. Oletuksena päällä.",
+            "sentinel_network_offline_device_min": "Kuinka kauan lukko, hälytyspaneeli tai kamera saa olla tavoittamattomissa, ennen kuin Sentinel ilmoittaa siitä. Oletus 30 minuuttia.",
+            "sentinel_network_unknown_device_grace_min": "Kuinka monta minuuttia odotetaan sen jälkeen, kun verkkoosi uusi laite havaitaan ensimmäisen kerran, ennen kuin Sentinel ilmoittaa siitä. Näin tuleva ja menevä laite ilmoitetaan silti, mutta ei koskaan heti sen ilmestyessä. Vaatii reititinintegraation. Oletus 5; 0 ilmoittaa heti ensimmäisellä havainnolla.",
+            "sentinel_network_guest_idle_days": "Kuinka monta päivää vieras-Wi-Fi saa olla päällä ilman yhdistettyjä vieraita, ennen kuin Sentinel ehdottaa sen sammuttamista. Vaatii reititinintegraation, joka raportoi vierasverkon (tällä hetkellä eero). Oletus 7.",
+            "sentinel_network_audit_share_details": "Päällä keskusteluagentin tietoturvatarkastus antaa keskustelumallille havaintojen yksityiskohdat (laitteiden nimet, portit, tunnusten nimet), jotta se voi selittää ne. Pois päältä malli saa vain määrät, vakavuustasot ja kiinteät otsikot, ja koko raportti lähetetään Home Assistantin pysyvänä ilmoituksena, kun pyytäjä on järjestelmänvalvoja (puhesatelliitti tai muu kuin järjestelmänvalvojan tili saa vain yhteenvedon). Verkko-osoitteet peitetään kummassakin tapauksessa. Oletuksena päällä.",
+            "sentinel_ha_token_stale_days": "Ikä päivinä, jonka ylittävästä pitkäaikaisesta käyttötunnuksesta ilmoitetaan. Home Assistant ei tallenna, milloin pitkäaikaista käyttötunnusta käytetään, joten ikä on ainoa saatavilla oleva tieto, ja hälytys ehdottaa vanhojen tunnusten vaihtamista. Oletus 90.",
+            "sentinel_auth_ip_retention_days": "Kuinka kauan käyttötunnusta käyttänyt osoite säilyy tietoturvatarkastuksen luettelossa. Osoitteet tallennetaan yksisuuntaisina tiivisteinä, ei koskaan selväkielisinä, ja tunnusta kohden säilytetään enintään 20. Oletus 90 päivää."
+          }
+        }
+      }
+    },
+    "feature": {
+      "entry_type": "palvelu",
+      "abort": {
+        "reconfigure_successful": "Ominaisuus päivitettiin.",
+        "setup_complete": "Määritys valmis.",
+        "no_provider_for_basic_setup": "Mallipalveluntarjoajaa ei ole määritetty. Lisää ensin **Mallipalveluntarjoaja** ja yritä määritystä sitten uudelleen."
+      },
+      "error": {
+        "no_providers": "Mallipalveluntarjoajia ei ole määritetty.",
+        "cannot_connect": "Tietokantaan ei saatu yhteyttä. Tarkista asetukset ja yritä uudelleen.",
+        "invalid_auth": "Virheellinen valtuutus.",
+        "invalid_uri": "URI-osoitetta ei voitu muodostaa.",
+        "unknown": "Odottamaton virhe."
+      },
+      "initiate_flow": {
+        "reconfigure": "Määritä ominaisuus uudelleen",
+        "user": "Määritys"
+      },
+      "step": {
+        "setup_mode": {
+          "title": "Määritys",
+          "description": "Valitse määritystapa. Perusmääritys ottaa kaikki ominaisuudet käyttöön suositelluilla oletuksilla. Edistynyt määritys antaa sinulle täyden hallinnan jokaiseen ominaisuuteen.{overwrite_warning}",
+          "data": {
+            "setup_mode": "Määritystapa"
+          }
+        },
+        "setup_status": {
+          "title": "Määritys valmis",
+          "description": "Määritys on valmis.\n\n**Käyttöön otetut ominaisuudet:** {features_enabled}{skipped_section}\n\n**Tietokanta:** {database_status}\n\n**Seuraavat vaiheet:**\n- Suorita **Määritä Sentinel** ottaaksesi poikkeamavalvonnan käyttöön.\n- Lisää **STT-palveluntarjoaja** puhesyötettä varten.\n- Siirry kohtaan **Asetukset → Puheavustajat** ja lisää Home Generative Agent puheavustajaksesi."
+        },
+        "feature_enable": {
+          "title": "Ominaisuuksien määritys",
+          "description": "**Keskustelu** on aina käytössä. Ota valinnaiset ominaisuudet käyttöön tai poista ne käytöstä alla.",
+          "data": {
+            "camera_image_analysis": "Kamerakuvien analyysi",
+            "conversation_summary": "Keskustelun tiivistelmä",
+            "embedding": "Upotukset"
+          },
+          "data_description": {
+            "embedding": "Upotusmalli semanttista muistia ja työkaluhakua varten. Kun pois päältä, palveluntarjoaja valitaan automaattisesti (keskustelun palveluntarjoaja, jos se tukee upotuksia)."
+          }
+        },
+        "feature_provider": {
+          "title": "Valitse mallipalveluntarjoaja",
+          "description": "Valitse mallipalveluntarjoaja ominaisuudelle {feature_name}.",
+          "data": {
+            "model_provider_id": "Mallipalveluntarjoaja"
+          }
+        },
+        "feature_model": {
+          "title": "{feature_name}",
+          "description": "Määritä tämän ominaisuuden malliasetukset. {provider_notice}",
+          "data": {
+            "model_name": "Malli",
+            "fallback_provider_ids": "Varapalveluntarjoajat",
+            "temperature": "Lämpötila",
+            "keepalive_s": "Ollaman keepalive (sekuntia tai Älä koskaan poista muistista (-1))",
+            "context_size": "Ollaman kontekstin koko (tokeneita)",
+            "reasoning": "Ajattelu / päättely",
+            "reasoning_budget": "Ajattelubudjetti (tokeneita)",
+            "openai_api": "OpenAI API"
+          },
+          "data_description": {
+            "fallback_provider_ids": "Järjestetty luettelo varapalveluntarjoajista. Ensimmäistä käytettävissä olevaa palveluntarjoajaa käytetään, jos ensisijainen epäonnistuu.",
+            "reasoning": "Ohjaa valitun keskustelumallin ajattelua. Palveluntarjoajan oletus jättää palvelimen/mallin toiminnan ennalleen; Pois ja Päällä asettavat sen erikseen; vaivannäön tasot välitetään niitä tukeville palveluntarjoajille. Asetukset muistetaan mallin nimen mukaan, joten mallin vaihtaminen palauttaa kunkin mallin määritykset.",
+            "reasoning_budget": "Valinnainen ajattelutokenien budjetti sitä tukeville palveluntarjoajille (OpenAI-yhteensopivat palvelimet, kuten llama.cpp, Gemini, Anthropic). Jätä tyhjäksi käyttääksesi palveluntarjoajan oletusta.",
+            "openai_api": "Mitä OpenAI API:a tämä malli käyttää. Automaattinen valitsee mallille parhaan: Responses API GPT-6-keskustelumalleille (ne eivät voi yhdistää työkaluja ja päättelyä Chat Completionsissa) ja vain siellä tarjottaville OpenAI-malleille (codex, pro), muuten Chat Completions. Valitse jompikumpi erikseen ohittaaksesi automaattisen valinnan, esimerkiksi Responses API OpenAI-yhteensopivalla palvelimella, joka tukee sitä. Jos valittu API ei pysty käsittelemään pyyntöä, kutsu yritetään automaattisesti uudelleen (Chat Completions päättely pois päältä GPT-6:n työkalukutsuille tai Chat Completions, kun palvelimella ei ole Responses API:a). Valinta muistetaan mallin nimen mukaan."
+          }
+        },
+        "database": {
+          "title": "Tietokannan määritys",
+          "description": "Anna tietokannan tarvittavat parametrit.",
+          "data": {
+            "username": "Tietokannan käyttäjätunnus",
+            "password": "Tietokannan salasana",
+            "host": "Tietokannan isäntä",
+            "port": "Tietokannan portti (valinnainen)",
+            "db_name": "Tietokannan nimi",
+            "db_params": "Tietokantayhteyden parametrit (valinnainen)"
+          }
+        },
+        "instructions": {
+          "title": "Lisää mallipalveluntarjoaja",
+          "description": "Mallipalveluntarjoajaa ei ole vielä määritetty. Lisää sellainen kohdasta **Mallipalveluntarjoaja**."
+        }
+      }
+    }
+  },
+  "selector": {
+    "setup_mode": {
+      "options": {
+        "basic": "Perusmääritys",
+        "advanced": "Edistynyt määritys"
+      }
+    },
+    "db_params": {
+      "fields": {
+        "key": {
+          "name": "Avain",
+          "description": "Yhteysparametrin nimi (esimerkiksi: sslmode, connect_timeout)"
+        },
+        "value": {
+          "name": "Arvo",
+          "description": "Yhteysparametrin arvo (esimerkiksi: disable, 30)"
+        }
+      }
+    },
+    "stt_request_format": {
+      "options": {
+        "multipart": "Multipart-lähetys (oletus)",
+        "json_base64": "JSON ja base64-ääni"
+      }
+    },
+    "voice_ack_timing": {
+      "options": {
+        "turn_start": "Heti kun agentti aloittaa",
+        "tool_call": "Ennen ensimmäistä työkalukutsua"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_config_entry": {
+      "message": "Annettu määritysmerkintä on virheellinen. Saatiin {config_entry}"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Home Generative Agentin asetukset",
+        "description": "Määritä yleinen toiminta ja kehotteet.",
+        "data": {
+          "face_api_url": "Kasvojentunnistuksen API-URL (valinnainen)",
+          "prompt": "Ohjeet",
+          "vlm_response_language": "Kamerakuvausten kieli (valinnainen)",
+          "vlm_prompt_extra": "Kamera-analyysin lisäohjeet (valinnainen)",
+          "llm_hass_api": "Ohjaa Home Assistantia",
+          "video_analyzer_mode": "Videoanalysaattorin tila",
+          "video_analyzer_uniqueness_enabled": "Ota käyttöön kuvien hajautusarvoon perustuva ruutusuodatin (dHash)",
+          "video_analyzer_event_recording_enabled": "Analysoi Ring-tapahtumatallenteet (ring-mqtt, Ring Protect)",
+          "video_analyzer_motion_camera_map": "Liiketunnistin → kamera -ohitukset (valinnainen)",
+          "notify_service": "Videoanalysaattorin ilmoituspalvelu (valinnainen)",
+          "video_analyzer_notification_cooldown_s": "Kameran ilmoitusten odotusaika (sekuntia)",
+          "video_analyzer_house_notification_cooldown_s": "Koko talon ilmoitusten odotusaika (sekuntia)",
+          "face_recognition": "Ota kasvojentunnistus käyttöön",
+          "manage_context_with_tokens": "Kontekstin hallintatapa",
+          "max_tokens_in_context": "Tokenien enimmäismäärä keskustelukontekstissa",
+          "max_messages_in_context": "Viestien enimmäismäärä keskustelukontekstissa",
+          "critical_action_pin_enabled": "Vaadi kriittisten toimintojen PIN",
+          "critical_action_pin": "Kriittisten toimintojen PIN (vaaditaan arkaluonteisten laitteiden avaamiseen/virittämiseen)",
+          "schema_first_yaml": "Skeema edellä -JSON YAML-pyynnöille",
+          "stt_filters_section": "Puhesyötteen suodattimet",
+          "stt_hallucination_patterns": "Ohitettavat STT-osamerkkijonot",
+          "stt_hallucination_exact_patterns": "Ohitettavat tarkat STT-lauseet",
+          "voice_tool_acknowledgement": "Puhuttu kuittaus (vain puhe)",
+          "voice_tool_acknowledgement_timing": "Milloin kuittaus puhutaan",
+          "tool_retrieval_limit": "Työkalujen hakuraja",
+          "tool_relevance_threshold": "Työkalujen relevanssikynnys",
+          "tool_exclusions": "Poissuljetut työkalut",
+          "tool_inclusions": "Aina mukana olevat työkalut"
+        },
+        "data_description": {
+          "prompt": "Ohjeista, miten LLM:n tulee vastata. Tämä voi olla malline.",
+          "vlm_response_language": "VLM:n kamerakuvakuvausten kieli, esim. 'Finnish'. Jätä tyhjäksi, niin käytetään englantia. Sisäinen vastaus 'Scene unchanged.' on aina englanniksi.",
+          "vlm_prompt_extra": "Lisäohjeet, jotka liitetään VLM:n kamera-analyysikehotteeseen, esim. 'Älä huomioi pihatiellä olevia autoja'. Ne eivät koskaan korvaa sisäänrakennettuja sääntöjä.",
+          "video_analyzer_notification_cooldown_s": "0 poistaa sen käytöstä. Kun kameran ilmoitus on soinut, saman kameran myöhemmät ilmoitukset näin monen sekunnin sisällä (enintään 600) korvaavat saman ilmoituksen hiljaisesti uusimmalla kuvatekstillä ja kuvalla sen sijaan, että soisivat uudelleen. Kun kasvojentunnistus on käytössä, ensimmäinen tuntematon henkilö tänä aikana soi silti. Toimii vain yhden mobiilisovelluksen ilmoituspalvelun kanssa (notify.mobile_app_...).",
+          "video_analyzer_house_notification_cooldown_s": "0 poistaa sen käytöstä. Kun usea kamera näkee saman tapahtuman, jokainen kamera lähettää ilmoituksen. Kun kameran ilmoitus on soinut, minkä tahansa kameran ilmoitus näin monen sekunnin sisällä (enintään 60) lisää silti oman korttinsa, mutta hiljaisesti, ja kyseinen kamera pysyy sen jälkeen hiljaa oman kameraodotusaikansa ajan, tai näin monta sekuntia, jos se on pidempi, laskettuna tuosta äänestä. Kun kameran odotusaika on pois päältä, jokainen kamera, myös soinut kamera, on hiljaa näin monta sekuntia. Kun kasvojentunnistus on käytössä, ensimmäinen tuntematon henkilö tänä aikana soi silti. Aloita noin 15 sekunnista: kunkin kameran video analysoidaan erikseen, joten sama tapahtuma voi tavoittaa kamerat 10–30 sekunnin välein. Toimii vain yhden mobiilisovelluksen ilmoituspalvelun kanssa (notify.mobile_app_...); varmistettu vain iOS:llä.",
+          "schema_first_yaml": "Kun käytössä, YAML-pyyntöihin vastataan tiukalla JSONilla, joka muunnetaan YAMLiksi.",
+          "stt_hallucination_patterns": "Yksi osamerkkijono riviä kohden. Jos STT-litterointi sisältää minkä tahansa merkinnän, se ohitetaan ennen LLM:n suorittamista. Vertailu ei huomioi kirjainkokoa.",
+          "stt_hallucination_exact_patterns": "Yksi lause riviä kohden. Jos koko STT-litterointi vastaa jotakin merkintää, se ohitetaan ennen LLM:n suorittamista. Vertailu ei huomioi kirjainkokoa.",
+          "voice_tool_acknowledgement": "Puhesatelliitti sanoo tämän agentin käsitellessä pyyntöä, jotta hitaaseen kysymykseen ei vastata hiljaisuudella (esimerkiksi \"Hetki.\"). Vain puhevuoroilla, enintään kerran vastausta kohden; seuraava asetus määrää ajankohdan. Vaatii HGA:n puhesynteesimoottorin tai muun suoratoistavan moottorin. Kirjoita se avustajasi kielellä. Jätä tyhjäksi poistaaksesi sen käytöstä.",
+          "voice_tool_acknowledgement_timing": "Heti kun agentti aloittaa kattaa koko odotuksen, myös paikallisen mallin ajan ennen ensimmäistä sanaa, mutta sanotaan myös ennen vastausta, joka ei tarvitse työkaluja (suosi siis neutraalia sanamuotoa, kuten \"Hetki.\"). Ennen ensimmäistä työkalukutsua sanotaan vain vuoroilla, joilla käytetään työkaluja, kun malli on jo aloittanut.",
+          "tool_retrieval_limit": "Haettavien työkalujen enimmäismäärä käyttäjän kyselyn semanttisen samankaltaisuuden perusteella.",
+          "tool_relevance_threshold": "Semanttisen samankaltaisuuden vähimmäispistemäärä (0.0–1.0), joka työkalun haku vaatii.",
+          "tool_exclusions": "Tässä valittuja työkaluja ei koskaan tarjota mallille eikä suoriteta, vaikka malli pyytäisi niitä nimeltä. Jätä tyhjäksi, niin kaikkien valittujen API:en kaikki työkalut ovat käytettävissä. Palvelimen myöhemmin lisäämät työkalut ovat oletuksena käytettävissä.",
+          "tool_inclusions": "Tässä valitut työkalut tarjotaan mallille aina: ne lisätään vektoripohjaisen työkaluhaun jälkeen hakurajan lisäksi. Hyödyllinen yleiskäyttöisille työkaluille, kuten verkkohaulle, joita samankaltaisuushaku ei välttämättä valitse. Malli päättää silti, käyttääkö se niitä. Työkalu ei voi olla sekä poissuljettu että aina mukana.",
+          "video_analyzer_uniqueness_enabled": "Ohita visuaalisesti lähes identtiset ruudut ennen VLM-analyysiä. Varoitus: tämän käyttöönotto poistaa ruutujen välisen liikekontekstin, jota yhteenvetomalli käyttää liikkeen kuvaamiseen. Ota käyttöön vain, jos staattinen näkymä tuottaa liikaa kaksoiskappaleita ja hyväksyt, että liikkeen jatkuvuus voi kadota.",
+          "video_analyzer_event_recording_enabled": "Kun ring-mqtt:n event_select-entiteetti julkaisee allekirjoitetun recordingUrl-osoitteen uudella eventId:llä, lataa tapahtuman MP4-tiedosto, pura siitä enintään 8 ruutua ffmpegillä ja analysoi ne säilytetyn välitilannekuvan sijaan, joka akkukameroissa voi olla jopa 10 minuuttia tapahtumaa vanhempi. Vaatii Ring Protect -tilauksen (kamerat ilman recordingUrl-osoitetta käyttävät edelleen tilannekuvia) ja ffmpeg-ohjelman, joka sisältyy viralliseen Home Assistant -kuvaan.",
+          "video_analyzer_motion_camera_map": "Yksi ohitus riviä kohden: binary_sensor.X_motion: camera.Y — käytä tätä, kun automaattinen tunnistus valitsee väärän kameran. Jätä tyhjäksi, niin käytetään laite- ja nimipohjaista tunnistusta."
+        }
+      }
+    }
+  },
+  "issues": {
+    "database_not_configured": {
+      "title": "Home Generative Agent toimii ilman tietokantaa",
+      "description": "Tällä merkinnällä ei ole Tietokanta-alimerkintää, joten se käyttää vain muistinvaraista tallennusta. Keskusteluhistoria katoaa jokaisella uudelleenlatauksella tai uudelleenkäynnistyksellä, pitkäaikainen muisti (keskustelujen tiivistelmät, kameratapahtumien muistaminen, hälytyksen virittämisen suostumus) ja kasvojentunnistus (henkilögalleria) eivät ole käytettävissä, ja Sentinelin perustasoon perustuva poikkeamien tunnistus on pois päältä. Sentinelin säännöt, ilmoitukset ja tarkastusloki toimivat edelleen.\n\nTietokanta-alimerkintä luodaan integraatiosivun kohdasta **+ Määritys**: **Perusmääritys** luo sen suositelluilla oletuksilla, ja **Edistynyt määritys** päättyy vaiheeseen **Tietokannan määritys**, joka testaa yhteyden ennen tallentamista. Tähän tilaan päädytään joko jättämällä **+ Määritys** suorittamatta integraation lisäämisen jälkeen tai sulkemalla edistyneen määrityksen ohjattu toiminto viimeisessä vaiheessa (ominaisuudet tallennetaan ennen sitä, joten merkintä latautuu silti).\n\nKorjaa tämä avaamalla **Asetukset → Laitteet ja palvelut → Home Generative Agent**, napsauttamalla **+ Määritys**, valitsemalla **Edistynyt määritys**, käymällä ominaisuudet läpi ja täyttämällä **Tietokannan määritys** -lomake. Mukana tulevalla PostgreSQL with pgvector -sovelluksella oletusarvot (`localhost`, portti `5432`, tietokanta `ha_db`, käyttäjä `ha_user`) ovat oikeat. Tämä ongelma poistuu heti, kun merkintä latautuu Tietokanta-alimerkinnän kanssa."
+    },
+    "pin_bypassed_by_local_intents": {
+      "title": "Kriittisten toimintojen PIN ei suojaa puhuttuja komentoja",
+      "description": "Koskee puheavustajaputkia: {pipelines}.\n\nNämä käyttävät Home Generative Agentia keskusteluagenttinaan, ja niissä on käytössä **Suosi komentojen käsittelyä paikallisesti**. Tällöin Home Assistant vertaa yksinkertaisia komentoja omiin sisäänrakennettuihin lauseisiinsa ja suorittaa ne itse, myös lukon avaamisen, ennen kuin agenttia edes kutsutaan. Agentti ei koskaan näe komentoa, joten kriittisten toimintojen PIN ei voi pysäyttää sitä vahvistusta varten.\n\nKorjaa tämä avaamalla **Asetukset → Puheavustajat**, muokkaamalla jokaista yllä lueteltua putkea ja kytkemällä **Suosi komentojen käsittelyä paikallisesti** pois päältä.\n\nJos lukkoa tai suojusta ei pitäisi voida ohjata puheella lainkaan, lopeta myös sen paljastaminen kohdassa **Asetukset → Puheavustajat → Paljasta**. Se on ainoa asetus, joka kattaa myös lauseliipaisimet ja muut kuin agentin kautta kulkevat reitit."
+    },
+    "unknown_person_rules_inert_no_face": {
+      "title": "Sentinelin tuntemattoman henkilön säännöt eivät voi laueta",
+      "description": "Koskee sääntöjä:\n\n{rules}\n\n**Miksi tämä näytetään:** kasvojentunnistus on pois päältä, joten mikään ei tuota tulosta, jota nämä säännöt tarvitsevat.\n\n**Käyttöönotto:** aseta kasvopalvelun URL ja ota kasvojentunnistus käyttöön integraation asetuksissa, varmista, että merkinnällä on Tietokanta-alimerkintä (henkilögalleria on siellä), ja aseta videoanalysaattorin tila — kasvoja tunnistetaan vain, kun analysaattori käsittelee tilannekuvia. Ilmoitus poistuu seuraavalla uudelleenlatauksella, kun kaikki toimii.\n\nNämä säännöt laukeavat vain kasvojentunnistuksen tuloksesta, jonka mukaan henkilö nähtiin mutta häntä ei tunnistettu, ja vain kasvojentunnistusputki tuottaa sen. Kun tulos puuttuu, mitään virhettä ei synny eikä mitään kirjata lokiin, ja säännöt näkyvät edelleen aktiivisina `sentinel_health`-anturissa, koska Sentinelin näkökulmasta ne eivät vain koskaan täsmää.\n\nSentinelin muut säännöt eivät muutu: lukitsemattomat lukot, avoimet sisäänkäynnit, laite- ja akkutarkistukset sekä Home Assistantin ja verkon tietoturvatarkastus.\n\n**Kameravalvontaan ilman kasvojentunnistusta** hyväksy `motion_detected_*`-sääntö Sentinelin sääntöjen etsinnästä — ne hälyttävät liikkeestä, kun ketään ei ole kotona, tai yöllä, eivätkä tarvitse kasvopalvelua.\n\nJos tarkoituksesi oli toimia ilman näitä sääntöjä, ohita tämä ilmoitus — se kertoo kattavuudesta, ei viasta."
+    },
+    "unknown_person_rules_inert_no_gallery": {
+      "title": "Sentinelin tuntemattoman henkilön säännöt eivät voi laueta",
+      "description": "Koskee sääntöjä:\n\n{rules}\n\n**Miksi tämä näytetään:** kasvojentunnistus on päällä, mutta tällä merkinnällä ei ole tietokantaa, joten henkilögalleriaa, johon ketään voisi verrata, ei ole. Tämän vuoksi kasvojentunnistus poistetaan käytöstä käynnistyksen yhteydessä.\n\n**Korjaus:** lisää Tietokanta-alimerkintä integraatiosivun kohdasta **+ Määritys**. Perustasoon perustuva poikkeamien tunnistus on pois päältä samasta syystä, ja sekin alkaa jälleen toimia. Ilmoitus poistuu seuraavalla uudelleenlatauksella.\n\nNämä säännöt laukeavat vain kasvojentunnistuksen tuloksesta, jonka mukaan henkilö nähtiin mutta häntä ei tunnistettu, ja vain kasvojentunnistusputki tuottaa sen. Kun tulos puuttuu, mitään virhettä ei synny eikä mitään kirjata lokiin, ja säännöt näkyvät edelleen aktiivisina `sentinel_health`-anturissa, koska Sentinelin näkökulmasta ne eivät vain koskaan täsmää.\n\nSentinelin muut säännöt eivät muutu: lukitsemattomat lukot, avoimet sisäänkäynnit, laite- ja akkutarkistukset sekä Home Assistantin ja verkon tietoturvatarkastus.\n\n**Kameravalvontaan ilman kasvojentunnistusta** hyväksy `motion_detected_*`-sääntö Sentinelin sääntöjen etsinnästä — ne hälyttävät liikkeestä, kun ketään ei ole kotona, tai yöllä, eivätkä tarvitse kasvopalvelua.\n\nJos tarkoituksesi oli toimia ilman näitä sääntöjä, ohita tämä ilmoitus — se kertoo kattavuudesta, ei viasta."
+    },
+    "unknown_person_rules_inert_no_analyzer": {
+      "title": "Sentinelin tuntemattoman henkilön säännöt eivät voi laueta",
+      "description": "Koskee sääntöjä:\n\n{rules}\n\n**Miksi tämä näytetään:** kasvojentunnistus on päällä ja tietokanta on olemassa, mutta videoanalysaattori on pois päältä. Kasvoja tunnistetaan vain, kun analysaattori käsittelee kameroiden tilannekuvia, joten tulosta ei koskaan synny.\n\n**Korjaus:** aseta integraation asetuksissa videoanalysaattorin tilaksi jokin muu kuin *disable*. Ilmoitus poistuu seuraavalla uudelleenlatauksella.\n\nNämä säännöt laukeavat vain kasvojentunnistuksen tuloksesta, jonka mukaan henkilö nähtiin mutta häntä ei tunnistettu, ja vain kasvojentunnistusputki tuottaa sen. Kun tulos puuttuu, mitään virhettä ei synny eikä mitään kirjata lokiin, ja säännöt näkyvät edelleen aktiivisina `sentinel_health`-anturissa, koska Sentinelin näkökulmasta ne eivät vain koskaan täsmää.\n\nSentinelin muut säännöt eivät muutu: lukitsemattomat lukot, avoimet sisäänkäynnit, laite- ja akkutarkistukset sekä Home Assistantin ja verkon tietoturvatarkastus.\n\n**Kameravalvontaan ilman kasvojentunnistusta** hyväksy `motion_detected_*`-sääntö Sentinelin sääntöjen etsinnästä — ne hälyttävät liikkeestä, kun ketään ei ole kotona, tai yöllä, eivätkä tarvitse kasvopalvelua.\n\nJos tarkoituksesi oli toimia ilman näitä sääntöjä, ohita tämä ilmoitus — se kertoo kattavuudesta, ei viasta."
+    }
+  }
+}
