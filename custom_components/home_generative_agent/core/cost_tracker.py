@@ -27,7 +27,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, fields
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeGuard
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -95,7 +95,7 @@ BUILTIN_PRICES: dict[str, ModelPrice] = {
     "gpt-5-nano": ModelPrice(0.05, 0.40, 0.005),
     # Anthropic (first-party API rates)
     "claude-opus-5-5": ModelPrice(4.0, 20.0, 0.20),
-    "claude-sonnet-5-5": ModelPrice(2.0, 10.0, 0.20),
+    "claude-sonnet-5-5": ModelPrice(2.0, 10.0, 0.10),
     "claude-opus-4-7": ModelPrice(5.0, 25.0, 0.50),
     "claude-sonnet-4-6": ModelPrice(3.0, 15.0, 0.30),
     "claude-haiku-4-5": ModelPrice(1.0, 5.0, 0.10),
@@ -234,6 +234,59 @@ class UsageRecord:
 _RECORD_FIELDS = tuple(f.name for f in fields(UsageRecord))
 
 
+def _is_number(value: Any) -> TypeGuard[float]:
+    """Return True for a finite int or float (bool excluded)."""
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
+
+
+def _is_count(value: Any) -> bool:
+    """Return True for a non-negative int token count (bool excluded)."""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _record_from_dict(raw: Any) -> UsageRecord | None:
+    """
+    Rebuild a stored record, or None when it is malformed.
+
+    Every field is type-checked so a corrupted store skips bad rows instead of
+    failing setup or a later summary. Unknown keys (e.g. a cost saved by an
+    earlier build) are ignored; costs are recomputed from the current prices.
+    """
+    if not isinstance(raw, dict):
+        return None
+    api = raw.get("api")
+    usage_reported = raw.get("usage_reported", True)
+    valid = (
+        _is_number(raw.get("ts"))
+        and all(
+            isinstance(raw.get(key), str) for key in ("category", "provider", "model")
+        )
+        and (api is None or isinstance(api, str))
+        and all(
+            _is_count(raw.get(key))
+            for key in ("input_tokens", "cached_tokens", "output_tokens")
+        )
+        and isinstance(usage_reported, bool)
+    )
+    if not valid:
+        return None
+    return UsageRecord(
+        ts=float(raw["ts"]),
+        category=raw["category"],
+        provider=raw["provider"],
+        model=raw["model"],
+        api=api,
+        input_tokens=raw["input_tokens"],
+        cached_tokens=raw["cached_tokens"],
+        output_tokens=raw["output_tokens"],
+        usage_reported=usage_reported,
+    )
+
+
 def _record_to_dict(rec: UsageRecord) -> dict[str, Any]:
     """Shallow dict of a record (asdict deep-copies; all fields are scalars)."""
     return {name: getattr(rec, name) for name in _RECORD_FIELDS}
@@ -333,20 +386,16 @@ class UsageCostTracker:
             data = None
         if not isinstance(data, dict):
             return
-        self._started = float(data.get("started") or self._started)
+        started = data.get("started")
+        if _is_number(started):
+            self._started = float(started)
+        records = data.get("records")
+        if not isinstance(records, list):
+            return
         cutoff = time.time() - RETENTION_S
-        for raw in data.get("records") or []:
-            if not isinstance(raw, dict):
-                continue
-            try:
-                # Unknown keys (e.g. a cost saved by an earlier build) are
-                # dropped; costs are recomputed from the current prices.
-                rec = UsageRecord(
-                    **{k: v for k, v in raw.items() if k in _RECORD_FIELDS}
-                )
-            except TypeError:
-                continue
-            if isinstance(rec.ts, (int, float)) and rec.ts >= cutoff:
+        for raw in records:
+            rec = _record_from_dict(raw)
+            if rec is not None and rec.ts >= cutoff:
                 self._records.append(rec)
 
     def _data_to_save(self) -> dict[str, Any]:

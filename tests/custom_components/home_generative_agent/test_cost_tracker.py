@@ -460,3 +460,54 @@ async def test_unreported_usage_is_unpriced_but_free_models_stay_free(
     free.usage_reported = False
     assert tracker.cost_of(paid) is None
     assert tracker.cost_of(free) == 0.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "stored",
+    [
+        {"started": "yesterday", "records": []},
+        {"started": None, "records": 5},
+        {"records": {"not": "a list"}},
+    ],
+)
+async def test_load_survives_malformed_store(
+    hass: HomeAssistant, stored: dict[str, Any]
+) -> None:
+    """A corrupted container never fails setup; it just loads nothing."""
+    tracker = _tracker(hass)
+    await tracker._store.async_save(stored)
+    reloaded = _tracker(hass)
+    await reloaded.async_load()
+    assert len(reloaded._records) == 0
+    assert reloaded.summary()["week"]["calls"] == 0
+
+
+@pytest.mark.asyncio
+async def test_load_skips_records_with_bad_field_types(hass: HomeAssistant) -> None:
+    """Rows with wrongly typed fields are skipped so summary() cannot fail."""
+    now = time.time()
+    good = {
+        "ts": now - 60,
+        "category": "chat",
+        "provider": "openai",
+        "model": "gpt-5",
+        "api": "responses",
+        "input_tokens": 1_000_000,
+        "cached_tokens": 0,
+        "output_tokens": 0,
+    }
+    bad_rows = [
+        {**good, "input_tokens": "1000"},
+        {**good, "ts": "now"},
+        {**good, "model": None},
+        {**good, "cached_tokens": -1},
+        {**good, "usage_reported": "yes"},
+        {**good, "ts": float("nan")},
+    ]
+    tracker = _tracker(hass)
+    await tracker._store.async_save({"started": now, "records": [good, *bad_rows]})
+    reloaded = _tracker(hass)
+    await reloaded.async_load()
+    assert len(reloaded._records) == 1
+    assert reloaded.summary(now)["day"]["cost_usd"] == pytest.approx(1.0)
