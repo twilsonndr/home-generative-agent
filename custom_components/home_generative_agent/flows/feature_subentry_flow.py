@@ -40,6 +40,8 @@ from ..const import (  # noqa: TID252
     CONF_DISABLED_FEATURES,
     CONF_FEATURE_FALLBACK_PROVIDER_IDS,
     CONF_FEATURE_MODEL,
+    CONF_FEATURE_MODEL_API,
+    CONF_FEATURE_MODEL_API_BY_MODEL,
     CONF_FEATURE_MODEL_CONTEXT_SIZE,
     CONF_FEATURE_MODEL_KEEPALIVE,
     CONF_FEATURE_MODEL_NAME,
@@ -52,6 +54,11 @@ from ..const import (  # noqa: TID252
     KEEPALIVE_MAX_SECONDS,
     KEEPALIVE_SENTINEL,
     MODEL_CATEGORY_SPECS,
+    OPENAI_API_AUTO,
+    OPENAI_API_CHAT_COMPLETIONS,
+    OPENAI_API_OPTION_KEYS,
+    OPENAI_API_PROVIDER_TYPES,
+    OPENAI_API_RESPONSES,
     PROVIDER_TYPE_LABELS,
     RECOMMENDED_DB_HOST,
     RECOMMENDED_DB_NAME,
@@ -76,6 +83,7 @@ from ..core.utils import (  # noqa: TID252
     list_ollama_models,
     list_openai_models,
     merge_model_options,
+    resolve_openai_api,
     validate_db_uri,
 )
 from .localization import async_common_translation
@@ -454,6 +462,90 @@ def _remembered_reasoning_entry(
         return {}
     entry = by_model.get(model_name)
     return dict(entry) if isinstance(entry, Mapping) else {}
+
+
+_OPENAI_API_LABELS = {
+    OPENAI_API_CHAT_COMPLETIONS: "Chat Completions (/v1/chat/completions)",
+    OPENAI_API_RESPONSES: "Responses API (/v1/responses)",
+}
+
+
+def _openai_api_display(value: Any) -> str:
+    """Map a stored API choice to its select-option value (auto when unset)."""
+    return value if value in _OPENAI_API_LABELS else OPENAI_API_AUTO
+
+
+def _add_openai_api_schema(
+    schema: dict[Any, Any],
+    provider_type: str,
+    category: str,
+    existing_model: Mapping[str, Any],
+    model_name: Any,
+) -> None:
+    """
+    Add the API select (Automatic / Chat Completions / Responses).
+
+    The default follows the stored model: its remembered choice, else the flat
+    choice, else Automatic. The Automatic label names the API it resolves to
+    for that model so the recommended choice is visible.
+    """
+    remembered = (existing_model.get(CONF_FEATURE_MODEL_API_BY_MODEL) or {}).get(
+        str(model_name or "")
+    )
+    stored = remembered or existing_model.get(CONF_FEATURE_MODEL_API)
+    auto_api = resolve_openai_api(
+        provider_type=provider_type, category=category, model=model_name
+    )
+    auto_label = f"Automatic (recommended: {_OPENAI_API_LABELS[auto_api]})"
+    schema[
+        vol.Optional(CONF_FEATURE_MODEL_API, default=_openai_api_display(stored))
+    ] = SelectSelector(
+        SelectSelectorConfig(
+            options=[
+                SelectOptionDict(label=auto_label, value=OPENAI_API_AUTO),
+                *(
+                    SelectOptionDict(label=label, value=value)
+                    for value, label in _OPENAI_API_LABELS.items()
+                ),
+            ],
+            mode=SelectSelectorMode.DROPDOWN,
+            sort=False,
+            custom_value=False,
+        )
+    )
+
+
+def _resolve_submitted_api(
+    user_input: Mapping[str, Any],
+    existing_model: Mapping[str, Any],
+    submitted_name: Any,
+) -> tuple[str | None, dict[str, str]]:
+    """
+    Resolve the API choice and per-model map for a model-form submission.
+
+    Returns (api, by_model); api None means Automatic. Like the thinking
+    fields, the on-screen choice belongs to the previously stored model, so a
+    model switch restores the new model's remembered choice (or Automatic)
+    instead of carrying the old one over.
+    """
+    by_model: dict[str, str] = {
+        str(name): api
+        for name, api in (
+            existing_model.get(CONF_FEATURE_MODEL_API_BY_MODEL) or {}
+        ).items()
+        if api in _OPENAI_API_LABELS
+    }
+    stored_name = existing_model.get(CONF_FEATURE_MODEL_NAME)
+    if stored_name is not None and submitted_name != stored_name:
+        return by_model.get(str(submitted_name or "")), by_model
+    api_val = user_input.get(CONF_FEATURE_MODEL_API)
+    api = api_val if api_val in _OPENAI_API_LABELS else None
+    if submitted_name:
+        if api is None:
+            by_model.pop(str(submitted_name), None)
+        else:
+            by_model[str(submitted_name)] = api
+    return api, by_model
 
 
 class FeatureSubentryFlow(ConfigSubentryFlow):
@@ -1122,6 +1214,20 @@ class FeatureSubentryFlow(ConfigSubentryFlow):
         if category == "chat" and provider_type in _REASONING_CHOICES:
             _add_reasoning_schema(schema, provider_type, existing_model, defaults)
 
+        offers_api_choice = (
+            provider_type in OPENAI_API_PROVIDER_TYPES
+            and category in OPENAI_API_OPTION_KEYS
+        )
+        if offers_api_choice:
+            _add_openai_api_schema(
+                schema,
+                provider_type or "",
+                category or "",
+                existing_model,
+                existing_model.get(CONF_FEATURE_MODEL_NAME)
+                or defaults.get(CONF_FEATURE_MODEL_NAME),
+            )
+
         if user_input is not None:
             provider_type = _provider_type_for_id(entry, provider_id)
             model_data = dict(defaults)
@@ -1129,6 +1235,11 @@ class FeatureSubentryFlow(ConfigSubentryFlow):
             submitted_name = user_input.get(CONF_FEATURE_MODEL_NAME)
             reasoning_val, budget_val, by_model = _resolve_submitted_thinking(
                 user_input, existing_model, submitted_name, category
+            )
+            api_val, api_by_model = (
+                _resolve_submitted_api(user_input, existing_model, submitted_name)
+                if offers_api_choice
+                else (None, {})
             )
             model_data.update(
                 {
@@ -1145,6 +1256,8 @@ class FeatureSubentryFlow(ConfigSubentryFlow):
                     CONF_FEATURE_MODEL_REASONING: reasoning_val,
                     CONF_FEATURE_MODEL_REASONING_BUDGET: budget_val,
                     CONF_FEATURE_MODEL_REASONING_BY_MODEL: by_model or None,
+                    CONF_FEATURE_MODEL_API: api_val,
+                    CONF_FEATURE_MODEL_API_BY_MODEL: api_by_model or None,
                 }
             )
             model_data = {k: v for k, v in model_data.items() if v is not None}

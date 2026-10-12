@@ -55,8 +55,17 @@ def test_openai_provider_defaults_to_chat_completions() -> None:
     assert 'use_responses_api=ConfigurableField(id="use_responses_api")' in block
 
 
-def test_openai_compatible_provider_stays_on_chat_completions() -> None:
-    """OpenAI-compatible servers rarely implement /v1/responses."""
-    block = _provider_block("openai_compatible_provider = ChatOpenAI(", chars=900)
+def test_openai_compatible_provider_defaults_to_chat_completions() -> None:
+    """OpenAI-compatible servers default to Chat Completions, choosable per model."""
+    start = _INIT.index("openai_compatible_provider = ChatOpenAI(")
+    end = _INIT.index("except Exception:", start)
+    block = _INIT[start:end]
     assert "use_responses_api=False" in block
-    assert 'ConfigurableField(id="use_responses_api")' not in block
+    assert 'use_responses_api=ConfigurableField(id="use_responses_api")' in block
+
+
+def test_every_openai_model_config_applies_the_api_choice() -> None:
+    """Chat, VLM and summary (both OpenAI providers) and fallbacks honor it."""
+    calls = _INIT.count("_openai_api_config(") - _INIT.count("def _openai_api_config(")
+    # chat x2, vlm x2, summarization x2, cloud fallback x1
+    assert calls == 7

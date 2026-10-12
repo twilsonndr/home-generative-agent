@@ -38,6 +38,9 @@ from ..const import (  # noqa: TID252
     OLLAMA_CATEGORY_URL_KEYS,
     OLLAMA_GPT_EFFORT,
     OLLAMA_OSS_TAG,
+    OPENAI_API_CHAT_COMPLETIONS,
+    OPENAI_API_EXPLICIT,
+    OPENAI_API_RESPONSES,
     OPENAI_CHAT_COMPLETIONS_PATH,
 )
 from .fallback import (
@@ -1373,6 +1376,64 @@ def openai_uses_responses_api(model: Any) -> bool:
     model stays on Chat Completions, the path this integration is tested on.
     """
     return str(model or "").lower().startswith("gpt-6")
+
+
+# OpenAI models served only on /v1/responses (Chat Completions answers 404 for
+# them whatever the request holds): the codex and -pro families, plus the names
+# langchain-openai 1.6 routes there on its own. /v1/models lists them, so the
+# model pickers offer them.
+_OPENAI_RESPONSES_ONLY_RE = re.compile(r"codex|(?:^|-)pro(?:-|$)|^gpt-5\.6-sol")
+
+
+def openai_requires_responses_api(model: Any) -> bool:
+    """Return True for OpenAI models that exist only on the Responses API."""
+    return bool(_OPENAI_RESPONSES_ONLY_RE.search(str(model or "").lower()))
+
+
+def openai_api_preference(
+    flat: Any,
+    by_model: Mapping[str, Any] | None,
+    model: Any,
+    *,
+    default_to_flat: bool = True,
+) -> str | None:
+    """
+    Return the user's API choice for a model, or None for automatic.
+
+    A per-model remembered choice wins; otherwise the feature's flat choice
+    applies to its primary model only (fallback models pass
+    default_to_flat=False, mirroring the per-model thinking settings).
+    """
+    remembered = (by_model or {}).get(str(model or ""))
+    if remembered in OPENAI_API_EXPLICIT:
+        return remembered
+    if default_to_flat and flat in OPENAI_API_EXPLICIT:
+        return flat
+    return None
+
+
+def resolve_openai_api(
+    *, provider_type: str, category: str, model: Any, preference: Any = None
+) -> str:
+    """
+    Return the API ("chat_completions" or "responses") a model call uses.
+
+    An explicit user choice always wins. Automatic keeps Chat Completions,
+    the path this integration is tested on, except where it cannot work on
+    OpenAI: a GPT-6-family chat model, which always binds tools, and a
+    Responses-only model (codex, -pro) in any category. OpenAI-compatible
+    servers default to Chat Completions, which nearly all serve.
+    A forced choice the backend rejects is recovered at call time (see
+    sampling_param_overrides in core/fallback.py), not here.
+    """
+    if preference in OPENAI_API_EXPLICIT:
+        return str(preference)
+    if provider_type == "openai" and (
+        openai_requires_responses_api(model)
+        or (category == "chat" and openai_uses_responses_api(model))
+    ):
+        return OPENAI_API_RESPONSES
+    return OPENAI_API_CHAT_COMPLETIONS
 
 
 def is_gemini_3_or_later(model: Any) -> bool:

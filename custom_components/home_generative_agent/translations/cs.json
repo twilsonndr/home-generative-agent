@@ -371,12 +371,14 @@
             "keepalive_s": "Ollama keepalive (sekundy nebo Nikdy neuvolňovat (-1))",
             "context_size": "Ollama velikost kontextu (tokeny)",
             "reasoning": "Přemýšlení / uvažování (thinking)",
-            "reasoning_budget": "Rozpočet přemýšlení (tokeny)"
+            "reasoning_budget": "Rozpočet přemýšlení (tokeny)",
+            "openai_api": "OpenAI API"
           },
           "data_description": {
             "fallback_provider_ids": "Seřazený seznam záložních poskytovatelů. První dostupný poskytovatel se použije, pokud primární selže.",
             "reasoning": "Řídí přemýšlení vybraného chat modelu. Výchozí nastavení poskytovatele ponechá chování serveru/modelu beze změny; Vypnuto a Zapnuto jej nastaví explicitně; úrovně úsilí se předají poskytovatelům, kteří je podporují. Nastavení se pamatuje pro každý název modelu, takže přepnutí modelu obnoví jeho konfiguraci.",
-            "reasoning_budget": "Volitelný rozpočet tokenů pro přemýšlení u poskytovatelů, kteří jej podporují (OpenAI-kompatibilní servery jako llama.cpp, Gemini, Anthropic). Ponechte prázdné pro výchozí nastavení poskytovatele."
+            "reasoning_budget": "Volitelný rozpočet tokenů pro přemýšlení u poskytovatelů, kteří jej podporují (OpenAI-kompatibilní servery jako llama.cpp, Gemini, Anthropic). Ponechte prázdné pro výchozí nastavení poskytovatele.",
+            "openai_api": "Které rozhraní OpenAI API tento model používá. Automatická volba vybere nejvhodnější rozhraní pro daný model: Responses API pro chatovací modely GPT-6 (přes Chat Completions nedokážou kombinovat nástroje a uvažování) a pro modely OpenAI dostupné jen přes Responses API (codex, pro), jinak Chat Completions. Výběrem konkrétního rozhraní automatickou volbu přepíšete, například Responses API na serveru kompatibilním s OpenAI, který ho podporuje. Pokud zvolené rozhraní požadavek nezvládne, volání se automaticky zopakuje (u volání nástrojů s GPT-6 přes Chat Completions s vypnutým uvažováním, případně přes Chat Completions, pokud server Responses API nemá). Volba se pamatuje pro každý název modelu."
           }
         },
         "database": {

@@ -153,6 +153,25 @@ Notes:
 
 ---
 
+### OpenAI API: Chat Completions or Responses
+
+For **OpenAI** and **OpenAI Compatible** providers, the Conversation, Camera Image Analysis and Conversation Summary model forms have an **OpenAI API** setting:
+
+| Choice | What it does |
+| --- | --- |
+| **Automatic** (default) | Uses the best API for the selected model. The option's label names the API it resolves to. OpenAI GPT-6-family chat models (`gpt-6-luna`, `gpt-6.1-sol`, …) use the Responses API, because they reject function tools combined with a reasoning effort on Chat Completions, and so do OpenAI models that exist only on the Responses API (`*-codex`, `*-pro`) in every model form. Everything else, including every OpenAI-compatible server, uses Chat Completions. |
+| **Chat Completions** | Always calls `/v1/chat/completions`. |
+| **Responses API** | Always calls `/v1/responses`, for example on an OpenAI-compatible server that implements it (such as vLLM). |
+
+The choice is remembered **per model name**, like the thinking settings: switching the model restores that model's choice (or Automatic), and choosing Automatic again forgets the override. As with thinking, the value on screen belongs to the model that was stored when the form opened, so after switching models, save again to change the new model's choice.
+
+A forced choice that the backend cannot serve does not fail the turn:
+
+- **Chat Completions on a GPT-6 chat model:** the request is retried once with the reasoning effort set to `none`, which GPT-6 accepts alongside tools on Chat Completions. Answers work, but without reasoning.
+- **Responses API on a server without it** (`/v1/responses` returns 404, 405 or 501, or a 400 saying the endpoint is unsupported): the request is retried once on Chat Completions.
+
+Both retries log a warning naming the rejected setting, so switching back to Automatic removes the extra round trip.
+
 ## Tool Retrieval (RAG)
 
 > **Thanks to [1Jamie](https://github.com/1Jamie) for this feature!**
