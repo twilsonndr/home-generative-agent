@@ -994,14 +994,27 @@ def test_responses_api_without_route_falls_back_to_chat_completions(
     assert overrides["use_responses_api"] is False
 
 
-def test_responses_endpoint_unsupported_400_falls_back() -> None:
+@pytest.mark.parametrize(
+    "message",
+    [
+        "This model is not supported in the Responses API.",
+        "Unsupported endpoint: /v1/responses",
+    ],
+)
+def test_responses_endpoint_unsupported_400_falls_back(message: str) -> None:
     """A 400 naming the Responses endpoint as unsupported also falls back."""
+    err = _status_error(400, "https://api.openai.com/v1/responses", message)
+    assert unsupported_sampling_param(err) == "use_responses_api"
+
+
+def test_responses_param_400_is_not_an_api_fallback() -> None:
+    """A param 400 on /responses keeps its own handling, not an API switch."""
     err = _status_error(
         400,
         "https://api.openai.com/v1/responses",
-        "This model is not supported in the Responses API.",
+        "Unsupported parameter: 'top_p' is not supported with this model.",
     )
-    assert unsupported_sampling_param(err) == "use_responses_api"
+    assert unsupported_sampling_param(err) != "use_responses_api"
 
 
 def test_chat_completions_404_is_not_an_api_fallback() -> None:
