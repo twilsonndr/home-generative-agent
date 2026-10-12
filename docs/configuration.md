@@ -120,7 +120,7 @@ What each choice sends depends on the provider:
 | --- | --- | --- | --- | --- |
 | Ollama | `reasoning: false` | `reasoning: true` | passed through for gpt-oss models; other models treat any effort as On | not supported by the Ollama API |
 | OpenAI Compatible (llama.cpp, vLLM, …) | `reasoning_effort: none` + `chat_template_kwargs: {enable_thinking: false}` | `chat_template_kwargs: {enable_thinking: true}` | `reasoning_effort` — free-form values (e.g. `xhigh`) pass through verbatim; the server owns the vocabulary | `thinking_budget_tokens` (recent llama.cpp servers; older servers ignore it) |
-| OpenAI | not sent (choose the `none` effort level on models that support it) | not sent | `reasoning_effort`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (GPT-6-family models are sent through the Responses API as `reasoning.effort`, since they reject tools plus reasoning on Chat Completions); a model that rejects a level is retried without it automatically | not supported |
+| OpenAI | not sent (choose the `none` effort level on models that support it; GPT-6 Astra and GPT-6.1 Sol do not, and get `low` instead) | not sent | `reasoning_effort`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (GPT-6-family models are sent through the Responses API as `reasoning.effort`, since they reject tools plus reasoning on Chat Completions); a model that rejects a level is retried without it automatically | not supported |
 | Gemini | `thinking_budget: 0` | `thinking_budget` (dynamic when no budget set) | not offered | `thinking_budget` |
 | Anthropic | not sent (thinking is off by default) | extended thinking with `budget_tokens` | not applicable (only Off/On offered) | `budget_tokens`, clamped to 1024–32768; `max_tokens` is raised above the budget and temperature is pinned to 1, as the API requires |
 
@@ -159,7 +159,7 @@ For **OpenAI** and **OpenAI Compatible** providers, the Conversation, Camera Ima
 
 | Choice | What it does |
 | --- | --- |
-| **Automatic** (default) | Uses the best API for the selected model. The option's label names the API it resolves to. OpenAI GPT-6-family chat models (`gpt-6-luna`, `gpt-6.1-sol`, …) use the Responses API, because they reject function tools combined with a reasoning effort on Chat Completions, and so do OpenAI models that exist only on the Responses API (`*-codex`, `*-pro`) in every model form. Everything else, including every OpenAI-compatible server, uses Chat Completions. |
+| **Automatic** (default) | Uses the best API for the selected model. The option's label names the API it resolves to. OpenAI GPT-6-family chat models (`gpt-6-luna`, `gpt-6.1-sol`, …) use the Responses API, because they reject function tools combined with a reasoning effort on Chat Completions, and so do OpenAI models that exist only on the Responses API (`*-codex`, `*-pro`) in every model form. Everything else, including every OpenAI-compatible server, uses Chat Completions. Fine-tuned models (`ft:gpt-…`) follow their base model and are listed with it. |
 | **Chat Completions** | Always calls `/v1/chat/completions`. |
 | **Responses API** | Always calls `/v1/responses`, for example on an OpenAI-compatible server that implements it (such as vLLM). |
 
@@ -167,8 +167,8 @@ The choice is remembered **per model name**, like the thinking settings: switchi
 
 A forced choice that the backend cannot serve does not fail the turn:
 
-- **Chat Completions on a GPT-6 chat model:** the request is retried once with the reasoning effort set to `none`, which GPT-6 accepts alongside tools on Chat Completions. Answers work, but without reasoning.
-- **Responses API on a server without it** (`/v1/responses` returns 404, 405 or 501, or a 400 saying the endpoint is unsupported): the request is retried once on Chat Completions.
+- **Chat Completions on a GPT-6 chat model:** GPT-6 Sol and GPT-6 Luna retry once with the reasoning effort set to `none`, the only effort they accept alongside tools on Chat Completions. Answers work, but without reasoning. GPT-6 Astra and GPT-6.1 Sol cannot call tools on Chat Completions at any effort, so their turns retry once on the Responses API with your effort unchanged. Pick Automatic to skip the failed first attempt.
+- **Responses API on a server without it** (`/v1/responses` returns 404, 405 or 501, or a 400 saying the endpoint is unsupported): the request is retried once on Chat Completions. A GPT-6 Sol or Luna conversation turn (which sends tools) is retried with the reasoning effort set to `none` in the same retry, since Chat Completions rejects their tools with any other effort.
 
 Both retries log a warning naming the rejected setting, so switching back to Automatic removes the extra round trip.
 
