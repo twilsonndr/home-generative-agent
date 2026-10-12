@@ -91,6 +91,11 @@ class ModelPrice:
     output: float
     cached_input: float | None = None
 
+    @property
+    def is_paid(self) -> bool:
+        """Return True when any token kind (cached input included) costs money."""
+        return bool(self.input or self.output or self.cached_input)
+
 
 # Only models whose published prices agreed across sources when checked.
 # GPT-6 Luna / Sol are left out on purpose: sources disagreed. Users add any
@@ -483,7 +488,10 @@ class UsageCostTracker:
         would overwrite the next tracker's file with this tracker's records.
         """
         self._closed = True
-        await self._store.async_save(self._data_to_save())
+        try:
+            await self._store.async_save(self._data_to_save())
+        except Exception:
+            LOGGER.warning("Could not save usage costs.", exc_info=True)
 
     @callback
     def async_start_refresh(self) -> Callable[[], None]:
@@ -524,9 +532,7 @@ class UsageCostTracker:
     def cost_of(self, record: UsageRecord) -> float | None:
         """Return a call's cost at the current prices, or None if unpriced."""
         price = self.price_for(record.model, record.provider)
-        if price is None or (
-            not record.usage_reported and (price.input or price.output)
-        ):
+        if price is None or (not record.usage_reported and price.is_paid):
             # No usage for a paid model: count the call as unpriced rather
             # than as free.
             return None
@@ -666,9 +672,14 @@ class UsageCostCallback(BaseCallbackHandler):
             usage.get("output_tokens"),
         )
         input_tokens, cached, output_tokens = (_int(c) for c in counts)
-        # A count the provider sent but that is not a plausible token count
-        # makes the call unpriced rather than cheaper than it was.
-        usage_valid = all(c is None or _is_count(c) for c in counts)
+        # Input and output counts are always part of LangChain usage, while a
+        # cache-read count is optional. A missing or implausible count makes
+        # the call unpriced rather than cheaper than it was.
+        usage_valid = (
+            _is_count(counts[0])
+            and _is_count(counts[2])
+            and (counts[1] is None or _is_count(counts[1]))
+        )
         self._tracker.record_threadsafe(
             UsageRecord(
                 ts=time.time(),

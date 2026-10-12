@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -716,3 +716,40 @@ async def test_record_cap_gap_survives_reload(
     reloaded = _tracker(hass)
     await reloaded.async_load()
     assert reloaded.summary(now)["week"]["covered_days"] == pytest.approx(3.0)
+
+
+def test_cache_only_price_counts_as_paid_without_usage(hass: HomeAssistant) -> None:
+    """A model billed only for cached input is unpriced, not free, without usage."""
+    tracker = UsageCostTracker(hass, {"cache-model": ModelPrice(0.0, 0.0, 1.0)})
+    rec = _record(time.time(), 0.0, model="cache-model")
+    rec.usage_reported = False
+    assert tracker.cost_of(rec) is None
+    assert ModelPrice(0.0, 0.0, 0.0).is_paid is False
+
+
+@pytest.mark.asyncio
+async def test_partial_usage_is_unpriced(hass: HomeAssistant) -> None:
+    """Usage without an output count is unpriced instead of priced as input only."""
+    tracker = UsageCostTracker(hass)
+    reply = AIMessage(content="hi", response_metadata={"model_name": "gpt-5"})
+    reply.usage_metadata = cast("Any", {"input_tokens": 100})
+    await _model_returning(reply, tracker).ainvoke("hello")
+    await hass.async_block_till_done()
+    assert tracker.summary()["last_call"]["cost"] is None
+
+
+@pytest.mark.asyncio
+async def test_flush_failure_is_contained(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A storage error while flushing is logged, not raised into shutdown."""
+    tracker = _tracker(hass)
+
+    async def _fail(_data: Any) -> None:
+        msg = "disk full"
+        raise OSError(msg)
+
+    with patch.object(tracker._store, "async_save", side_effect=_fail):
+        await tracker.async_flush()
+    assert tracker._closed
+    assert "Could not save usage costs" in caplog.text
