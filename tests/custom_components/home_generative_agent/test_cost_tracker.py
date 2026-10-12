@@ -175,8 +175,8 @@ async def test_summary_windows_and_projections(hass: HomeAssistant) -> None:
     assert day["projected_monthly_usd"] == pytest.approx(0.20 * ct.DAYS_PER_MONTH)
     assert week["cost_usd"] == pytest.approx(0.90)
     assert week["projected_monthly_usd"] == pytest.approx(0.90 / 7 * ct.DAYS_PER_MONTH)
-    assert week["by_model"]["gpt-5 (responses)"]["calls"] == 2
-    assert week["by_model"]["gpt-6-luna (responses)"]["cost_usd"] is None
+    assert week["by_model"]["gpt-5 (responses, openai)"]["calls"] == 2
+    assert week["by_model"]["gpt-6-luna (responses, openai)"]["cost_usd"] is None
     assert summary["last_call"]["model"] == "gpt-6-luna"
 
 
@@ -355,7 +355,7 @@ async def test_sensors_expose_costs_and_breakdown(hass: HomeAssistant) -> None:
     )
     attrs = sensors["llm_cost_7d"].extra_state_attributes
     assert attrs is not None
-    assert attrs["by_model"]["gpt-5 (responses)"]["input_tokens"] == 250_000
+    assert attrs["by_model"]["gpt-5 (responses, openai)"]["input_tokens"] == 250_000
     assert sensors["llm_cost_24h"].native_unit_of_measurement == "USD"
     assert sensors["llm_cost_24h"].unique_id == "llm_cost_24h::entry1"
 
@@ -580,3 +580,58 @@ async def test_periodic_tick_without_expired_records_does_not_save(
         await hass.async_block_till_done()
         unsub()
     delay_save.assert_not_called()
+
+
+def test_oversized_price_is_rejected_not_crashing() -> None:
+    """A JSON integer too large for a float is an invalid price, not a crash."""
+    huge = "1" + "0" * 400
+    with pytest.raises(ValueError, match="non-negative"):
+        parse_model_prices(f'{{"gpt-5": [{huge}, 1]}}')
+    assert (
+        _model_prices_error({CONF_MODEL_PRICES: f'{{"x": [{huge}, 1]}}'})
+        == "invalid_model_prices"
+    )
+
+
+@pytest.mark.asyncio
+async def test_load_skips_oversized_numbers(hass: HomeAssistant) -> None:
+    """Huge stored integers are skipped instead of aborting the load."""
+    huge = 10**400
+    now = time.time()
+    row = {
+        "ts": huge,
+        "category": "chat",
+        "provider": "openai",
+        "model": "gpt-5",
+        "api": None,
+        "input_tokens": 1,
+        "cached_tokens": 0,
+        "output_tokens": 1,
+    }
+    reloaded = _tracker(hass)
+    # HA's own JSON layer cannot round-trip such integers; feed the loader
+    # directly, as a hand-edited or foreign store could.
+    with patch.object(
+        reloaded._store,
+        "async_load",
+        return_value={"started": huge, "records": [row]},
+    ):
+        await reloaded.async_load()
+    assert len(reloaded._records) == 0
+    assert reloaded._started <= now + 1
+
+
+@pytest.mark.asyncio
+async def test_breakdown_separates_providers_of_the_same_model(
+    hass: HomeAssistant,
+) -> None:
+    """An unpriced proxy call does not hide the priced OpenAI subtotal."""
+    tracker = UsageCostTracker(hass, {"gpt-5": ModelPrice(1.0, 0.0)})
+    now = time.time()
+    tracker._started = now - ct.DAY_S
+    tracker.async_record(_record(now - 60, 0.5))  # openai, priced
+    tracker.async_record(_record(now - 30, 0.25, provider="openai_compatible"))
+    by_model = tracker.summary(now)["day"]["by_model"]
+    assert by_model["gpt-5 (responses, openai)"]["cost_usd"] == pytest.approx(0.5)
+    # Plain entries price compatible servers too; scope one to change that.
+    assert by_model["gpt-5 (responses, openai_compatible)"]["calls"] == 1

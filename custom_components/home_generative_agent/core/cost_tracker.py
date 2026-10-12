@@ -60,6 +60,8 @@ WEEK_S = 7 * DAY_S
 # Average month length used for the projections.
 DAYS_PER_MONTH = 30.437
 TOKENS_PER_PRICE_UNIT = 1_000_000
+# Shortest span a projection scales from (see _window_summary).
+MIN_PROJECTION_SPAN_S = 3600.0
 # Per-call records kept at most; at a call a minute this is about two weeks.
 MAX_RECORDS = 20_000
 # The window sensors only change on a new call; this re-summarizes them so the
@@ -197,12 +199,7 @@ def _parse_price(model: str, raw: Any) -> ModelPrice:
 
 def _valid_price(value: Any) -> bool:
     """Return True for a finite, non-negative number (JSON allows NaN/Infinity)."""
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-        and value >= 0
-    )
+    return _is_number(value) and value >= 0
 
 
 def price_for(
@@ -277,12 +274,14 @@ _RECORD_FIELDS = tuple(f.name for f in fields(UsageRecord))
 
 
 def _is_number(value: Any) -> TypeGuard[float]:
-    """Return True for a finite int or float (bool excluded)."""
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+    """Return True for a finite int or float that fits a float (bool excluded)."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        # JSON integers are unbounded; one too large for a float overflows.
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _is_count(value: Any) -> bool:
@@ -353,7 +352,10 @@ def _window_summary(
         calls += 1
         tokens_in += rec.input_tokens
         tokens_out += rec.output_tokens
-        key = f"{rec.model} ({rec.api})" if rec.api else rec.model
+        # Provider is part of the key: the same model name can be priced for
+        # one provider and unpriced (or priced differently) for another.
+        detail = f"{rec.api}, {rec.provider}" if rec.api else rec.provider
+        key = f"{rec.model} ({detail})" if detail else rec.model
         bucket = by_model.setdefault(
             key,
             {
@@ -376,7 +378,8 @@ def _window_summary(
         cost += rec_cost
         if bucket["cost_usd"] is not None:
             bucket["cost_usd"] += rec_cost
-    days = max(span_s, 3600.0) / DAY_S
+    # At least an hour: a few minutes of data scaled to a month is noise.
+    days = max(span_s, MIN_PROJECTION_SPAN_S) / DAY_S
     return {
         "cost_usd": cost,
         "projected_monthly_usd": cost / days * DAYS_PER_MONTH,

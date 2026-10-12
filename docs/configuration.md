@@ -184,7 +184,7 @@ HGA records the token usage each provider reports for every chat, camera-analysi
 | **LLM cost projected per month (from last 24 hours)** | The last 24 hours scaled to an average month (30.44 days). |
 | **LLM cost projected per month (from last 7 days)** | The last 7 days scaled to an average month. |
 
-The window sensors carry a `by_model` attribute keyed by model and API (for example `gpt-5 (responses)`, `gpt-6-luna (chat_completions)`) with calls, tokens and cost, so you can compare Chat Completions and Responses API usage after switching a model's **OpenAI API** setting. Projections use the time actually tracked: after two days of use, the 7-day projection scales those two days, not seven.
+The window sensors carry a `by_model` attribute keyed by model, API and provider type (for example `gpt-5 (responses, openai)`, `gpt-6-luna (chat_completions, openai_compatible)`) with calls, tokens and cost, so you can compare Chat Completions and Responses API usage after switching a model's **OpenAI API** setting, and a model served by two providers shows up once per provider. Projections use the time actually tracked: after two days of use, the 7-day projection scales those two days, not seven. They scale at least one hour, so a projection made in the first hour of tracking understates; `covered_days` shows the span used.
 
 The sensors update after every call and every 5 minutes, so the 24-hour and 7-day sums fall as old calls leave the window. A call whose provider reports no token usage (for example a streamed reply from an OpenAI-compatible server that does not send stream usage) is still counted, as unpriced.
 
