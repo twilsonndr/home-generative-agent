@@ -452,6 +452,18 @@ CONF_FEATURE_MODEL_REASONING_BUDGET = "reasoning_budget"
 # and forth restores each model's configuration (issue #580):
 # {model_name: {"reasoning": <canonical value>, "budget": <int tokens>}}.
 CONF_FEATURE_MODEL_REASONING_BY_MODEL = "reasoning_by_model"
+# Which OpenAI API a feature model uses (OpenAI and OpenAI-compatible
+# providers only). "auto" picks per model (see resolve_openai_api in
+# core/utils.py); the user can force either API. Remembered per model name like
+# the thinking settings: {model_name: "chat_completions" | "responses"}.
+CONF_FEATURE_MODEL_API = "openai_api"
+CONF_FEATURE_MODEL_API_BY_MODEL = "openai_api_by_model"
+OPENAI_API_AUTO = "auto"
+OPENAI_API_CHAT_COMPLETIONS = "chat_completions"
+OPENAI_API_RESPONSES = "responses"
+# The explicit (stored) choices; Automatic is stored as the absence of one.
+OPENAI_API_EXPLICIT = (OPENAI_API_CHAT_COMPLETIONS, OPENAI_API_RESPONSES)
+OPENAI_API_PROVIDER_TYPES = frozenset({"openai", "openai_compatible"})
 CONF_FEATURE_MODEL_KEEPALIVE = "keepalive_s"
 CONF_FEATURE_MODEL_CONTEXT_SIZE = "context_size"
 
@@ -461,6 +473,17 @@ CONF_FEATURE_MODEL_CONTEXT_SIZE = "context_size"
 CONF_CHAT_REASONING = "chat_reasoning"
 CONF_CHAT_REASONING_BUDGET = "chat_reasoning_budget"
 CONF_CHAT_REASONING_BY_MODEL = "chat_reasoning_by_model"
+
+# ---- OpenAI API selection (resolved runtime options, per category) ----
+# Values: OPENAI_API_CHAT_COMPLETIONS or OPENAI_API_RESPONSES; absent = auto.
+OPENAI_API_OPTION_KEYS: dict[str, tuple[str, str]] = {
+    "chat": ("chat_openai_api", "chat_openai_api_by_model"),
+    "vlm": ("vlm_openai_api", "vlm_openai_api_by_model"),
+    "summarization": (
+        "summarization_openai_api",
+        "summarization_openai_api_by_model",
+    ),
+}
 # Anthropic extended thinking constraints: the API requires
 # budget_tokens >= 1024 and max_tokens > budget_tokens. The budget is capped
 # so budget + response headroom stays under every current model's output
@@ -532,9 +555,10 @@ STT_REQUEST_FORMAT_JSON = "json_base64"
 STT_REQUEST_FORMATS = (STT_REQUEST_FORMAT_MULTIPART, STT_REQUEST_FORMAT_JSON)
 
 STT_MODEL_OPENAI_SUPPORTED = Literal[
-    "whisper-1",
+    "gpt-transcribe",
     "gpt-4o-transcribe",
     "gpt-4o-mini-transcribe",
+    "whisper-1",
 ]
 RECOMMENDED_OPENAI_STT_MODEL: STT_MODEL_OPENAI_SUPPORTED = "gpt-4o-mini-transcribe"
 STT_RESPONSE_FORMATS = ("text", "json", "verbose_json", "srt", "vtt")
@@ -597,8 +621,18 @@ TTS_STREAM_RESPONSE_FORMAT = "wav"
 CHAT_MODEL_TOP_P = 1.0
 # *SUPPORTED are used as defaults and fallbacks for Ollama in the UI.
 CHAT_MODEL_OLLAMA_SUPPORTED = Literal["gpt-oss", "qwen2.5:32b", "qwen3:32b", "qwen3:8b"]
+# The flows also list whatever models the account's /v1/models returns, so
+# this only seeds the dropdown (and the offline fallback).
 CHAT_MODEL_OPENAI_SUPPORTED = Literal[
-    "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4o", "gpt-4.1", "o4-mini"
+    "gpt-6.1-sol",
+    "gpt-6-luna",
+    "gpt-6-astra",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-4o",
+    "gpt-4.1",
+    "o4-mini",
 ]
 CHAT_MODEL_GEMINI_SUPPORTED = Literal[
     "gemini-3.7-flash",
@@ -666,7 +700,9 @@ RECOMMENDED_MAX_MESSAGES_IN_CONTEXT = 60
 # ---------------- VLM (vision) ----------------
 VLM_TOP_P = 1.0
 VLM_OLLAMA_SUPPORTED = Literal["qwen2.5vl:7b", "qwen3-vl:8b", "gemma3:4b"]
-VLM_OPENAI_SUPPORTED = Literal["gpt-5-nano", "gpt-4.1", "gpt-4.1-nano"]
+VLM_OPENAI_SUPPORTED = Literal[
+    "gpt-6-luna", "gpt-6.1-sol", "gpt-5-nano", "gpt-4.1", "gpt-4.1-nano"
+]
 VLM_GEMINI_SUPPORTED = Literal[
     "gemini-3.7-flash",
     "gemini-3.5-flash",
@@ -792,7 +828,9 @@ VLM_IMAGE_HEIGHT = 1080
 # ---------------- Summarization ----------------
 SUMMARIZATION_MODEL_TOP_P = 1.0
 SUMMARIZATION_MODEL_OLLAMA_SUPPORTED = Literal["qwen3:1.7b", "qwen3:8b"]
-SUMMARIZATION_MODEL_OPENAI_SUPPORTED = Literal["gpt-5-nano", "gpt-4.1", "gpt-4.1-nano"]
+SUMMARIZATION_MODEL_OPENAI_SUPPORTED = Literal[
+    "gpt-6-luna", "gpt-5-nano", "gpt-4.1", "gpt-4.1-nano"
+]
 SUMMARIZATION_MODEL_GEMINI_SUPPORTED = Literal[
     "gemini-3.7-flash",
     "gemini-3.5-flash",

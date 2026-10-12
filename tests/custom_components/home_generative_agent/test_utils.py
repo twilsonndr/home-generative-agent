@@ -973,6 +973,30 @@ def test_thinking_openai_effort_only() -> None:
     assert thinking_configurable(provider_type="openai", reasoning=False) == {}
 
 
+@pytest.mark.parametrize("effort", ["none", "xhigh", "max"])
+def test_thinking_openai_gpt6_effort_levels(effort: str) -> None:
+    """GPT-6 reasoning.effort levels are forwarded to cloud OpenAI."""
+    assert thinking_configurable(provider_type="openai", reasoning=effort) == {
+        "reasoning_effort": effort
+    }
+
+
+@pytest.mark.parametrize("model", ["gpt-6.1-sol", "gpt-6-astra"])
+def test_thinking_openai_none_becomes_low_where_unsupported(model: str) -> None:
+    """Models without "none" get "low" (OpenAI's advice), not their default."""
+    assert thinking_configurable(
+        provider_type="openai", reasoning="none", model=model
+    ) == {"reasoning_effort": "low"}
+    assert thinking_configurable(
+        provider_type="openai", reasoning="none", model="gpt-6-luna"
+    ) == {"reasoning_effort": "none"}
+
+
+def test_thinking_gemini_ignores_openai_only_levels() -> None:
+    """OpenAI-only levels do not turn Gemini thinking on."""
+    assert thinking_configurable(provider_type="gemini", reasoning="xhigh") == {}
+
+
 def test_thinking_openai_compatible_off() -> None:
     """Off sends reasoning_effort=none and enable_thinking=False (llama.cpp)."""
     config = thinking_configurable(
