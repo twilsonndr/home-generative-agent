@@ -30,3 +30,15 @@ def openai_base_model(model: Any) -> str:
 def openai_supports_no_reasoning(model: Any) -> bool:
     """Return False for OpenAI models that reject reasoning_effort "none"."""
     return not _NO_NONE_EFFORT_RE.search(openai_base_model(model))
+
+
+def openai_chat_tools_need_no_reasoning(model: Any) -> bool:
+    """
+    Return True when tools on Chat Completions need reasoning_effort "none".
+
+    GPT-6 Sol and Luna call tools on Chat Completions only with "none"; their
+    default effort is rejected alongside tools.
+    """
+    return openai_base_model(model).startswith(
+        "gpt-6"
+    ) and openai_supports_no_reasoning(model)

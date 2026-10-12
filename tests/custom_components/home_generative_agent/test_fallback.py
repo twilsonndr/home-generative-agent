@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -21,6 +22,7 @@ from custom_components.home_generative_agent.core.fallback import (
     FallbackVLM,
     _is_retryable,
     ainvoke_dropping_unsupported_params,
+    describe_overrides,
     invoke_dropping_unsupported_params,
     sampling_param_overrides,
     unsupported_sampling_param,
@@ -1129,3 +1131,72 @@ async def test_gpt6_tools_error_on_responses_url_sets_both_overrides() -> None:
         model, ["hi"], {"configurable": {"use_responses_api": True}}
     )
     assert result == "ok"
+
+
+def _responses_404(body: dict[str, Any]) -> Exception:
+    request = httpx.Request(
+        "POST", "https://proxy.local/v1/responses", content=json.dumps(body)
+    )
+    response = httpx.Response(404, request=request)
+    err_body = {"message": "Not Found", "type": "invalid_request_error", "code": None}
+    return openai.NotFoundError(
+        f"Error code: 404 - {{'error': {err_body}}}",
+        response=response,  # pyright: ignore[reportArgumentType]  # httpx vs openai 3's httpx2
+        body=err_body,
+    )
+
+
+_TOOLS = [{"type": "function", "name": "HassTurnOn", "parameters": {}}]
+
+
+def test_chat_downgrade_of_gpt6_tool_call_sends_none_effort() -> None:
+    """A /responses 404 for GPT-6 Luna with tools retries on Chat with "none"."""
+    wrapped = HomeAssistantError("Model invocation failed")
+    wrapped.__cause__ = _responses_404({"model": "gpt-6-luna", "tools": _TOOLS})
+    overrides = sampling_param_overrides(wrapped)
+    assert overrides["use_responses_api"] is False
+    assert overrides["reasoning_effort"] == "none"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"model": "gpt-6-luna"},  # no tools: the default effort is fine
+        {"model": "gpt-6-astra", "tools": _TOOLS},  # rejects "none"
+        {"model": "gpt-5", "tools": _TOOLS},  # not GPT-6
+    ],
+)
+def test_chat_downgrade_keeps_effort_otherwise(body: dict[str, Any]) -> None:
+    """Only GPT-6 Sol/Luna tool calls get "none" on the downgrade."""
+    overrides = sampling_param_overrides(_responses_404(body))
+    assert overrides["use_responses_api"] is False
+    assert overrides["reasoning_effort"] is None
+
+
+@pytest.mark.asyncio
+async def test_ainvoke_dropping_downgrade_then_tools_in_one_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The config-merge retry applies the API switch and "none" together."""
+    model = MagicMock()
+    model.ainvoke = AsyncMock(
+        side_effect=[_responses_404({"model": "gpt-6-sol", "tools": _TOOLS}), "ok"]
+    )
+    with caplog.at_level(logging.WARNING):
+        result = await ainvoke_dropping_unsupported_params(
+            model, ["hi"], {"configurable": {"use_responses_api": True}}
+        )
+    assert result == "ok"
+    assert model.ainvoke.await_count == 2
+    retry = model.ainvoke.await_args_list[1].args[1]["configurable"]
+    assert retry["use_responses_api"] is False
+    assert retry["reasoning_effort"] == "none"
+    assert "use_responses_api=False, reasoning_effort='none'" in caplog.text
+
+
+def test_describe_overrides_names_applied_and_defaulted_params() -> None:
+    """Log text says what the retry sets, not the inverse."""
+    assert describe_overrides(
+        {"use_responses_api": True, "temperature": None, "top_p": None}
+    ) == ("use_responses_api=True; temperature, top_p at provider defaults")
+    assert describe_overrides({}) == "no changes"

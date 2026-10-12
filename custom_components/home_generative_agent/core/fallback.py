@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from time import monotonic
@@ -18,7 +19,10 @@ from ..const import (  # noqa: TID252
     HTTP_STATUS_NOT_IMPLEMENTED,
     HTTP_STATUS_WEBPAGE_NOT_FOUND,
 )
-from .openai_models import openai_supports_no_reasoning
+from .openai_models import (
+    openai_chat_tools_need_no_reasoning,
+    openai_supports_no_reasoning,
+)
 from .prompt_cache import adapt_system_message_for_model
 
 if TYPE_CHECKING:
@@ -183,6 +187,38 @@ def _tools_retry_can_use_no_reasoning(err: Exception) -> bool:
     return match is None or openai_supports_no_reasoning(match.group(1).strip("'\"`"))
 
 
+def _chat_downgrade_needs_no_reasoning(err: Exception) -> bool:
+    """
+    Return True when a Responses-to-Chat downgrade must also send effort "none".
+
+    A GPT-6 Sol or Luna call with tools moved to Chat Completions is rejected
+    there unless reasoning_effort is "none" (their default effort is not
+    accepted with tools), so the downgrade sets both in one retry. The model
+    and tools are read from the failed request's JSON body.
+    """
+    request = getattr(err, "request", None)
+    try:
+        body = json.loads(getattr(request, "content", b"") or b"{}")
+    except (TypeError, ValueError, RuntimeError):
+        # RuntimeError covers httpx.RequestNotRead for a streamed body.
+        return False
+    if not isinstance(body, dict) or not body.get("tools"):
+        return False
+    return openai_chat_tools_need_no_reasoning(body.get("model"))
+
+
+def describe_overrides(overrides: dict[str, Any]) -> str:
+    """Describe a retry's overrides for a log line ("x=1; y at defaults")."""
+    applied = ", ".join(
+        f"{key}={value!r}" for key, value in overrides.items() if value is not None
+    )
+    nulled = sorted(key for key, value in overrides.items() if value is None)
+    parts = [applied] if applied else []
+    if nulled:
+        parts.append(f"{', '.join(nulled)} at provider defaults")
+    return "; ".join(parts) or "no changes"
+
+
 def sampling_param_overrides(err: BaseException, max_depth: int = 10) -> dict[str, Any]:
     """
     Return the configurable overrides for a retry after a sampling-param 400.
@@ -192,7 +228,7 @@ def sampling_param_overrides(err: BaseException, max_depth: int = 10) -> dict[st
     leaves the model's own default effort, which is rejected the same way. A
     model without "none" (GPT-6 Astra, GPT-6.1 Sol) moves to the Responses API
     instead. A Responses API call the backend does not serve retries on Chat
-    Completions.
+    Completions, with effort "none" when it is a GPT-6 Sol or Luna tool call.
     Both checks run on every error in the chain: one error can match both
     (the GPT-6 tools message names /v1/responses), and unsupported_sampling_param
     may have reported either one, so each must leave its override behind.
@@ -213,6 +249,8 @@ def sampling_param_overrides(err: BaseException, max_depth: int = 10) -> dict[st
                     overrides.pop("reasoning_effort", None)
             if _responses_api_unsupported(current):
                 overrides[USE_RESPONSES_API_PARAM] = False
+                if _chat_downgrade_needs_no_reasoning(current):
+                    overrides["reasoning_effort"] = "none"
         current = current.__cause__
     return overrides
 
@@ -245,13 +283,18 @@ def _record_dropped_param(err: Exception, dropped: dict[str, Any]) -> None:
     param = unsupported_sampling_param(err)
     if param is None or param in dropped:
         raise err
-    dropped[param] = sampling_param_overrides(err)[param]
+    overrides = sampling_param_overrides(err)
+    applied = {param: overrides[param]}
+    if param == USE_RESPONSES_API_PARAM and overrides.get("reasoning_effort"):
+        # An API switch can need a matching effort in the same retry.
+        applied["reasoning_effort"] = overrides["reasoning_effort"]
+    for key, value in applied.items():
+        dropped.setdefault(key, value)
     LOGGER.warning(
-        "Model rejected unsupported parameter %r (%s); retrying without it. "
-        "Configure the model's %s to its supported default to avoid this retry.",
-        param,
+        "Model rejected the request (%s); retrying with %s. Change the model's "
+        "settings to match to avoid this retry.",
         _safe_err_summary(err),
-        param,
+        describe_overrides(applied),
     )
 
 
@@ -581,10 +624,10 @@ class FallbackChatModel:
         src_model, tools, tool_kwargs = source
         provider_id = self.chain[index][2]
 
+        overrides = sampling_param_overrides(err)
+
         def _rebuild() -> Any:
-            stripped = src_model.with_config(
-                config={"configurable": sampling_param_overrides(err)}
-            )
+            stripped = src_model.with_config(config={"configurable": overrides})
             return stripped.bind_tools(tools, **tool_kwargs)
 
         try:
@@ -599,9 +642,9 @@ class FallbackChatModel:
             )
             return None
         LOGGER.warning(
-            "Provider %s rejected an unsupported sampling parameter with tools "
-            "bound; retried with provider-default sampling parameters.",
+            "Provider %s rejected the request with tools bound; retried with %s.",
             provider_id,
+            describe_overrides(overrides),
         )
         return result
 

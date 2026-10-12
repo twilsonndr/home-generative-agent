@@ -819,7 +819,7 @@ _OPENAI_NON_CHAT_MARKERS = (
     "tts",
     "whisper",
 )
-_OPENAI_CHAT_PREFIXES = ("gpt-", "o1", "o3", "o4", "chatgpt-")
+_OPENAI_CHAT_PREFIXES = ("gpt-", "o1", "o3", "o4", "chatgpt-", "codex-")
 
 # Model ids each category keeps from an official OpenAI /v1/models listing.
 # Unknown categories keep everything.

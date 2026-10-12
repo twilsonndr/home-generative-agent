@@ -138,6 +138,7 @@ def test_filter_openai_models_by_category() -> None:
         "gpt-6-luna",
         "gpt-6.1-sol",
         "o4-mini",
+        "codex-mini-latest",
         "gpt-transcribe",
         "gpt-live-transcribe",
         "whisper-1",
@@ -147,7 +148,12 @@ def test_filter_openai_models_by_category() -> None:
         "text-embedding-3-small",
         "omni-moderation-latest",
     ]
-    assert filter_openai_models(ids, "chat") == ["gpt-6-luna", "gpt-6.1-sol", "o4-mini"]
+    assert filter_openai_models(ids, "chat") == [
+        "codex-mini-latest",
+        "gpt-6-luna",
+        "gpt-6.1-sol",
+        "o4-mini",
+    ]
     assert filter_openai_models(ids, "vlm") == filter_openai_models(ids, "chat")
     assert filter_openai_models(ids, "stt") == [
         "gpt-live-transcribe",

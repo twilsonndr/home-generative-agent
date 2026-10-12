@@ -168,7 +168,7 @@ The choice is remembered **per model name**, like the thinking settings: switchi
 A forced choice that the backend cannot serve does not fail the turn:
 
 - **Chat Completions on a GPT-6 chat model:** GPT-6 Sol and GPT-6 Luna retry once with the reasoning effort set to `none`, the only effort they accept alongside tools on Chat Completions. Answers work, but without reasoning. GPT-6 Astra and GPT-6.1 Sol cannot call tools on Chat Completions at any effort, so their turns retry once on the Responses API with your effort unchanged. Pick Automatic to skip the failed first attempt.
-- **Responses API on a server without it** (`/v1/responses` returns 404, 405 or 501, or a 400 saying the endpoint is unsupported): the request is retried once on Chat Completions.
+- **Responses API on a server without it** (`/v1/responses` returns 404, 405 or 501, or a 400 saying the endpoint is unsupported): the request is retried once on Chat Completions. A GPT-6 Sol or Luna conversation turn (which sends tools) is retried with the reasoning effort set to `none` in the same retry, since Chat Completions rejects their tools with any other effort.
 
 Both retries log a warning naming the rejected setting, so switching back to Automatic removes the extra round trip.
 
